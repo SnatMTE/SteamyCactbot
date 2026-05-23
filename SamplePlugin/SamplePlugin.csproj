@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project Sdk="Dalamud.NET.Sdk/15.0.0">
+  <PropertyGroup>
+    <Version>0.0.0.1</Version>
+    <PackageProjectUrl>https://github.com/Snat/CactbotUI</PackageProjectUrl>
+    <PackageLicenseExpression>AGPL-3.0-or-later</PackageLicenseExpression>
+    <IsPackable>false</IsPackable>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <AssemblyName>CactbotUI</AssemblyName>
+    <RootNamespace>CactbotUI</RootNamespace>
+    <LangVersion>latest</LangVersion>
+    <!-- DalamudPackager manifest fields -->
+    <Name>CactbotUI</Name>
+    <Author>Snat</Author>
+    <Punchline>Cactbot overlay integration for FFXIV</Punchline>
+    <Description>A Cactbot UI plugin that displays triggers, timelines, and raid buffs overlay in FFXIV. Use /cactbot to open settings.</Description>
+    <ApplicableVersion>any</ApplicableVersion>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="PuppeteerSharp" Version="23.*" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="..\Data\cactbot-user\raidboss-user.js">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+      <TargetPath>raidboss-user.js</TargetPath>
+    </None>
+  </ItemGroup>
+
+</Project>

@@ -1,0 +1,13 @@
+{
+  "Author": "Snat",
+  "Name": "CactbotUI",
+  "Punchline": "Cactbot overlay integration for FFXIV",
+  "Description": "A Cactbot UI plugin that displays triggers, timelines, and raid buffs overlay in FFXIV. Use /cactbot to open settings.",
+  "ApplicableVersion": "any",
+  "Tags": [
+    "cactbot",
+    "overlay",
+    "raid",
+    "buffs"
+  ]
+}
