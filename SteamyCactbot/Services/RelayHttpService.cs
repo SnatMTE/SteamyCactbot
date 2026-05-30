@@ -19,7 +19,7 @@ namespace CactbotUI.Services;
 /// relay script inline so alerts are forwarded to the plugin overlay.
 ///
 /// The user just navigates to <see cref="OverlayUrl"/> instead of the long
-/// proxy.iinact.com URL — no manual Cactbot configuration required.
+/// proxy.iinact.com URL - no manual Cactbot configuration required.
 /// </summary>
 public sealed class RelayHttpService : IDisposable
 {

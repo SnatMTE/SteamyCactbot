@@ -14,7 +14,7 @@ namespace CactbotUI.Services;
 ///
 /// On first use, Chromium is downloaded once to <c>{pluginDir}/chromium/</c>
 /// (~150 MB).  Subsequent starts reuse the cached copy.  No external browser
-/// installation is required — works on Windows and Steam Deck (Proton/Wine).
+/// installation is required - works on Windows and Steam Deck (Proton/Wine).
 /// </summary>
 public sealed class BrowserService : IDisposable
 {
@@ -33,7 +33,7 @@ public sealed class BrowserService : IDisposable
         BrowserState.Downloading => $"Downloading Chromium… {DownloadPct}%",
         BrowserState.Launching   => "Launching…",
         BrowserState.Running     => "Running",
-        BrowserState.Error       => "Error — check /xllog",
+        BrowserState.Error       => "Error - check /xllog",
         _                        => "Unknown",
     };
 

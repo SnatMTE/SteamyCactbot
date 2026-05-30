@@ -17,9 +17,9 @@ namespace CactbotUI.Services;
 /// OverlayPlugin endpoint at <c>ws://127.0.0.1:10501/ws</c>.
 ///
 /// On connect the service subscribes to:
-///   - <c>onBroadcastMessage</c>  — processed raidboss trigger alerts from cactbot
-///   - <c>ChangeZone</c>          — zone transitions for status display
-///   - <c>onInCombat</c>          — combat state changes
+///   - <c>onBroadcastMessage</c>  - processed raidboss trigger alerts from cactbot
+///   - <c>ChangeZone</c>          - zone transitions for status display
+///   - <c>onInCombat</c>          - combat state changes
 ///
 /// All network I/O runs on a background <see cref="Task"/>; the public API is
 /// thread-safe and may be called from the ImGui draw loop without blocking.
@@ -36,7 +36,7 @@ public sealed class WebSocketService : IDisposable
     private const int    ReconnectDelayMs = 5_000;
 
     // Events confirmed to be registered in IINACT OverlayPlugin 0.19.x.
-    // "onBroadcastMessage" and "onInCombat" do NOT exist in this build —
+    // "onBroadcastMessage" and "onInCombat" do NOT exist in this build -
     // onBroadcastMessage only fires when a browser-based cactbot overlay is
     // running and broadcasting; IINACT's builtin Cactbot event source does not
     // generate it because it does not run the raidboss JS layer.
@@ -187,7 +187,7 @@ public sealed class WebSocketService : IDisposable
             cancellationToken: token);
 
         // ------------------------------------------------------------------
-        // Receive loop — reassemble fragmented frames before processing
+        // Receive loop - reassemble fragmented frames before processing
         // ------------------------------------------------------------------
         var buffer         = new byte[16 * 1024]; // 16 KB per frame
         var messageBuilder = new StringBuilder();
@@ -605,7 +605,7 @@ public sealed class WebSocketService : IDisposable
 
         cts.Cancel();
 
-        // Attempt a clean WebSocket close (best effort — we're shutting down)
+        // Attempt a clean WebSocket close (best effort - we're shutting down)
         try
         {
             if (socket?.State == WebSocketState.Open)
@@ -615,7 +615,7 @@ public sealed class WebSocketService : IDisposable
                     CancellationToken.None)
                 .Wait(millisecondsTimeout: 1_000);
         }
-        catch { /* swallow — plugin is being disposed */ }
+        catch { /* swallow - plugin is being disposed */ }
 
         socket?.Dispose();
         cts.Dispose();

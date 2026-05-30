@@ -25,7 +25,7 @@ public class CactbotAlert
     /// <summary>Human-readable text to display (e.g. "Stack!", "Spread").</summary>
     public string Text { get; set; } = string.Empty;
 
-    /// <summary>Severity — determines display colour.</summary>
+    /// <summary>Severity - determines display colour.</summary>
     public AlertType Type { get; set; } = AlertType.Info;
 
     /// <summary>How many seconds this alert should stay on screen.</summary>
@@ -73,7 +73,7 @@ public class CactbotAlert
 
 /// <summary>
 /// Top-level shape of every message received from the OverlayPlugin WebSocket.
-/// Only the fields we actually use are deserialised — unknown fields are ignored.
+/// Only the fields we actually use are deserialised - unknown fields are ignored.
 /// </summary>
 internal class OverlayPluginMessage
 {

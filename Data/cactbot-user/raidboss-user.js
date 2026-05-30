@@ -1,7 +1,7 @@
 'use strict';
 
 // ============================================================
-// CactbotUI relay — broadcasts every Cactbot alarm/alert/info
+// CactbotUI relay - broadcasts every Cactbot alarm/alert/info
 // text back via OverlayPlugin BroadcastMessage so the
 // CactbotUI Dalamud plugin can display them in-game.
 //
@@ -12,7 +12,7 @@
 //   2. In IINACT open the Cactbot raidboss overlay settings and
 //      set "User Config Path" to that directory, then reload.
 //   3. The plugin overlay should show "Relay loaded" briefly
-//      on startup — that confirms the file is working.
+//      on startup - that confirms the file is working.
 // ============================================================
 
 (function cactbotUIRelay() {
@@ -87,7 +87,7 @@
     });
     observer.observe(document.documentElement, { childList: true, subtree: true });
 
-    // Startup confirmation — if the plugin shows "Relay loaded" the file is working.
+    // Startup confirmation - if the plugin shows "Relay loaded" the file is working.
     sendBroadcast('Relay loaded', 'info');
   }
 

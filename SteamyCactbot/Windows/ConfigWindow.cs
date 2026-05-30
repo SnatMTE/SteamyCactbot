@@ -21,7 +21,7 @@ public class ConfigWindow : Window, IDisposable
     private readonly RelayHttpService relayService;
     private readonly BrowserService   browserService;
 
-    // Constant window ID — the title can change without breaking ImGui identity
+    // Constant window ID - the title can change without breaking ImGui identity
     public ConfigWindow(Plugin plugin, WebSocketService wsService, OverlayWindow overlayWindow, RelayHttpService relayService, BrowserService browserService)
         : base("Cactbot Overlay Settings###CactbotConfig")
     {
@@ -210,7 +210,7 @@ public class ConfigWindow : Window, IDisposable
 
         var logLineCount = wsService.LogLineCount;
         if (logLineCount == 0)
-            ImGui.TextColored(new Vector4(1.00f, 0.55f, 0.20f, 1f), "⚠ No LogLine events received — verify OverlayPlugin/IINACT is running and network parsing is enabled.");
+            ImGui.TextColored(new Vector4(1.00f, 0.55f, 0.20f, 1f), "⚠ No LogLine events received - verify OverlayPlugin/IINACT is running and network parsing is enabled.");
         else
             ImGui.TextColored(new Vector4(0.20f, 1.00f, 0.20f, 1f), $"✔ {logLineCount} LogLine events received");
 

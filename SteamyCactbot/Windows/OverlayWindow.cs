@@ -21,7 +21,7 @@ namespace CactbotUI.Windows;
 public class OverlayWindow : Window, IDisposable
 {
     // -----------------------------------------------------------------------
-    // Alert-type display colours (RGBA, full alpha — alpha is modulated below)
+    // Alert-type display colours (RGBA, full alpha - alpha is modulated below)
     // -----------------------------------------------------------------------
     private static readonly Vector4 ColorAlarm  = new(1.00f, 0.15f, 0.15f, 1f); // red
     private static readonly Vector4 ColorAlert  = new(1.00f, 0.65f, 0.00f, 1f); // orange
@@ -75,7 +75,7 @@ public class OverlayWindow : Window, IDisposable
 
         // Apply the saved screen position on the first frame after opening.
         // Combined with NoSavedSettings, ImGuiCond.Always fires on every new
-        // ImGui window lifetime — which is exactly what we want after
+        // ImGui window lifetime - which is exactly what we want after
         // OnClose() resets positionInitialised.
         if (!positionInitialised)
         {
@@ -148,7 +148,7 @@ public class OverlayWindow : Window, IDisposable
         frameAlerts.AddRange(wsService.GetActiveAlerts(cfg.MaxVisibleAlerts));
 
         // ------------------------------------------------------------------
-        // Nothing to show — render a subtle drag-handle / status dot so the
+        // Nothing to show - render a subtle drag-handle / status dot so the
         // user can still reposition the overlay outside of combat
         // ------------------------------------------------------------------
         if (frameAlerts.Count == 0)
@@ -160,8 +160,8 @@ public class OverlayWindow : Window, IDisposable
             ImGui.SetWindowFontScale(cfg.AlertFontScale);
             var statusText = wsService.IsConnected
                 ? (wsService.LogLineCount == 0
-                    ? "Connected — no log events yet (check /xlsettings)"
-                    : $"Connected — {wsService.LogLineCount} events received")
+                    ? "Connected - no log events yet (check /xlsettings)"
+                    : $"Connected - {wsService.LogLineCount} events received")
                 : "OverlayPlugin WebSocket disconnected";
             ImGui.TextColored(statusColor, statusText);
             ImGui.SetWindowFontScale(1.0f);
@@ -183,7 +183,7 @@ public class OverlayWindow : Window, IDisposable
                     baseColor.Z,
                     baseColor.W * alert.FadeAlpha);
 
-                // Compute display text — both countdown and cast bar update every frame
+                // Compute display text - both countdown and cast bar update every frame
                 string displayText;
                 if (alert.CountdownEndTime.HasValue)
                 {

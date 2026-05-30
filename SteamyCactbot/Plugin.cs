@@ -35,8 +35,8 @@ public sealed class Plugin : IDalamudPlugin
     [PluginService] internal static IChatGui                ChatGui          { get; private set; } = null!;
     [PluginService] internal static IFramework              Framework        { get; private set; } = null!;
 
-    // /cactbot       — toggle move mode
-    // /cactbot config — open settings
+    // /cactbot       - toggle move mode
+    // /cactbot config - open settings
     private const string CommandName = "/cactbot";
 
     public Configuration Configuration { get; init; }
@@ -60,17 +60,17 @@ public sealed class Plugin : IDalamudPlugin
         // Load or create configuration from Dalamud's config storage
         Configuration = PluginInterface.GetPluginConfig() as Configuration ?? new Configuration();
 
-        // Start the WebSocket service — connects and listens on a background Task
+        // Start the WebSocket service - connects and listens on a background Task
         wsService = new WebSocketService(Log, Configuration);
 
-        // Start the relay HTTP server — serves raidboss-user.js to Cactbot
+        // Start the relay HTTP server - serves raidboss-user.js to Cactbot
         var pluginDir = PluginInterface.AssemblyLocation.DirectoryName ?? string.Empty;
         relayService   = new RelayHttpService(Log, pluginDir);
 
         // Launch headless browser pointing at the local proxied Cactbot overlay
         browserService = new BrowserService(Log, pluginDir, relayService.OverlayUrl);
 
-        // Create windows — OverlayWindow must exist before ConfigWindow
+        // Create windows - OverlayWindow must exist before ConfigWindow
         // so ConfigWindow can hold a reference to it
         OverlayWindow = new OverlayWindow(this, wsService);
         ConfigWindow  = new ConfigWindow(this, wsService, OverlayWindow, relayService, browserService);
@@ -97,7 +97,7 @@ public sealed class Plugin : IDalamudPlugin
     }
 
     // -----------------------------------------------------------------------
-    // Disposal — unregister everything to prevent leaks on reload
+    // Disposal - unregister everything to prevent leaks on reload
     // -----------------------------------------------------------------------
     public void Dispose()
     {
@@ -143,7 +143,7 @@ public sealed class Plugin : IDalamudPlugin
     }
 
     // -----------------------------------------------------------------------
-    // Framework update — drain chat queue on the game main thread
+    // Framework update - drain chat queue on the game main thread
     // -----------------------------------------------------------------------
     private void OnFrameworkUpdate(IFramework framework)
     {
