@@ -54,39 +54,39 @@ jobs:
           # 1. Plugin manifest (Dalamud update channel format)
           # ----------------------------------------------------------------
           cat <<EOF > public/plugin.json
-        {
-          "Author": "$AUTHOR",
-          "Name": "$NAME",
-          "Punchline": "$PUNCHLINE",
-          "Description": "$DESCRIPTION",
-          "ApplicableVersion": "any",
-          "Tags": $TAGS,
-          "Version": "$VERSION",
-          "DownloadLink": "$DOWNLOAD_URL",
-          "DownloadCount": 0,
-          "IconUrl": "",
-          "IsHide": false,
-          "IsTestingExclusive": false,
-          "LastUpdate": $(date +%s)
-        }
-        EOF
+          {
+            "Author": "$AUTHOR",
+            "Name": "$NAME",
+            "Punchline": "$PUNCHLINE",
+            "Description": "$DESCRIPTION",
+            "ApplicableVersion": "any",
+            "Tags": $TAGS,
+            "Version": "$VERSION",
+            "DownloadLink": "$DOWNLOAD_URL",
+            "DownloadCount": 0,
+            "IconUrl": "",
+            "IsHide": false,
+            "IsTestingExclusive": false,
+            "LastUpdate": $(date +%s)
+          }
+          EOF
 
           # ----------------------------------------------------------------
           # 2. Simple version.json (for your webpage)
           # ----------------------------------------------------------------
           cat <<EOF > public/version.json
-        {
-          "version": "$VERSION",
-          "tag": "$TAG",
-          "name": "$NAME",
-          "author": "$AUTHOR",
-          "punchline": "$PUNCHLINE",
-          "downloadUrl": "$DOWNLOAD_URL",
-          "releaseUrl": "https://github.com/$REPO/releases/tag/$TAG",
-          "publishedAt": "${{ github.event.release.published_at }}",
-          "notes": $(echo '${{ github.event.release.body }}' | jq -Rs '.')
-        }
-        EOF
+          {
+            "version": "$VERSION",
+            "tag": "$TAG",
+            "name": "$NAME",
+            "author": "$AUTHOR",
+            "punchline": "$PUNCHLINE",
+            "downloadUrl": "$DOWNLOAD_URL",
+            "releaseUrl": "https://github.com/$REPO/releases/tag/$TAG",
+            "publishedAt": "${{ github.event.release.published_at }}",
+            "notes": $(echo '${{ github.event.release.body }}' | jq -Rs '.')
+          }
+          EOF
 
           echo "Generated plugin.json and version.json for v$VERSION"
 
