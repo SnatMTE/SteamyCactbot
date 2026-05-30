@@ -3,6 +3,17 @@ name: Release — Update JSON & Deploy Pages
 on:
   release:
     types: [published]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version number (e.g. 0.0.0.2)"
+        required: true
+      tag:
+        description: "Git tag (e.g. v0.0.0.2)"
+        required: true
+      notes:
+        description: "Release notes (optional)"
+        required: false
 
 permissions:
   contents: write
@@ -24,19 +35,42 @@ jobs:
         id: version
         shell: bash
         run: |
-          # Strip leading "v" or "V" from tag, e.g. "v0.0.0.2" → "0.0.0.2"
-          TAG="${{ github.event.release.tag_name }}"
-          CLEAN="${TAG#v}"
-          CLEAN="${CLEAN#V}"
-          echo "version=$CLEAN" >> "$GITHUB_OUTPUT"
-          echo "Extracted version: $CLEAN"
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "version=${{ inputs.version }}" >> "$GITHUB_OUTPUT"
+            echo "tag=${{ inputs.tag }}" >> "$GITHUB_OUTPUT"
+            echo "notes=${{ inputs.notes }}" >> "$GITHUB_OUTPUT"
+            echo "Extracted version: ${{ inputs.version }}"
+          else
+            # Strip leading "v" or "V" from tag, e.g. "v0.0.0.2" → "0.0.0.2"
+            TAG="${{ github.event.release.tag_name }}"
+            CLEAN="${TAG#v}"
+            CLEAN="${CLEAN#V}"
+            echo "version=$CLEAN" >> "$GITHUB_OUTPUT"
+            echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+            echo "Extracted version: $CLEAN"
+          fi
 
       - name: Generate version JSON
         id: generate
         shell: bash
         run: |
           VERSION="${{ steps.version.outputs.version }}"
-          TAG="${{ github.event.release.tag_name }}"
+
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            TAG="${{ steps.version.outputs.tag }}"
+            NOTES_RAW="${{ steps.version.outputs.notes }}"
+            if [ -z "$NOTES_RAW" ]; then
+              NOTES="null"
+            else
+              NOTES=$(echo "$NOTES_RAW" | jq -Rs '.')
+            fi
+            PUBLISHED_AT="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          else
+            TAG="${{ github.event.release.tag_name }}"
+            NOTES=$(echo '${{ github.event.release.body }}' | jq -Rs '.')
+            PUBLISHED_AT="${{ github.event.release.published_at }}"
+          fi
+
           REPO="${{ github.repository }}"
 
           # Read existing metadata from the Dalamud manifest
@@ -83,8 +117,8 @@ jobs:
             "punchline": "$PUNCHLINE",
             "downloadUrl": "$DOWNLOAD_URL",
             "releaseUrl": "https://github.com/$REPO/releases/tag/$TAG",
-            "publishedAt": "${{ github.event.release.published_at }}",
-            "notes": $(echo '${{ github.event.release.body }}' | jq -Rs '.')
+            "publishedAt": "$PUBLISHED_AT",
+            "notes": $NOTES
           }
           EOF
 
