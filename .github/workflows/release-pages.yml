@@ -68,50 +68,94 @@ jobs:
 
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
             NOTES_RAW="${{ steps.version.outputs.notes }}"
-            if [ -z "$NOTES_RAW" ]; then NOTES="null"; else NOTES=$(echo "$NOTES_RAW" | jq -Rs '.'); fi
+            if [ -z "$NOTES_RAW" ]; then NOTES_FLAG=""; else NOTES_FLAG="$NOTES_RAW"; fi
             PUBLISHED_AT="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
           else
-            NOTES=$(echo '${{ github.event.release.body }}' | jq -Rs '.')
+            NOTES_RAW=$(echo '${{ github.event.release.body }}')
+            if [ -z "$NOTES_RAW" ]; then NOTES_FLAG=""; else NOTES_FLAG="$NOTES_RAW"; fi
             PUBLISHED_AT="${{ github.event.release.published_at }}"
           fi
 
           mkdir -p public
 
-          cat <<EOF > public/plugin.json
-      [
-        {
-          "Author": "$AUTHOR",
-          "Name": "$NAME",
-          "InternalName": "$INTERNAL_NAME",
-          "AssemblyVersion": "$ASSEMBLY_VERSION",
-          "Punchline": "$PUNCHLINE",
-          "Description": "$DESCRIPTION",
-          "ApplicableVersion": "$APPLICABLE_VERSION",
-          "DalamudApiLevel": $DALAMUD_API_LEVEL,
-          "RepoUrl": "https://github.com/$REPO",
-          "DownloadCount": 0,
-          "LastUpdate": $(date +%s),
-          "DownloadLinkInstall": "$DOWNLOAD_URL",
-          "DownloadLinkUpdate": "$DOWNLOAD_URL",
-          "IconUrl": "",
-          "Changelog": ""
-        }
-      ]
-      EOF
+          # Build plugin.json using jq
+          jq -n \
+            --arg author "$AUTHOR" \
+            --arg name "$NAME" \
+            --arg internalName "$INTERNAL_NAME" \
+            --arg assemblyVersion "$ASSEMBLY_VERSION" \
+            --arg punchline "$PUNCHLINE" \
+            --arg description "$DESCRIPTION" \
+            --arg applicableVersion "$APPLICABLE_VERSION" \
+            --argjson dalamudApiLevel "$DALAMUD_API_LEVEL" \
+            --arg repoUrl "https://github.com/$REPO" \
+            --arg downloadUrl "$DOWNLOAD_URL" \
+            --arg lastUpdate "$(date +%s)" \
+            '[
+              {
+                "Author": $author,
+                "Name": $name,
+                "InternalName": $internalName,
+                "AssemblyVersion": $assemblyVersion,
+                "Punchline": $punchline,
+                "Description": $description,
+                "ApplicableVersion": $applicableVersion,
+                "DalamudApiLevel": $dalamudApiLevel,
+                "RepoUrl": $repoUrl,
+                "DownloadCount": 0,
+                "LastUpdate": ($lastUpdate | tonumber),
+                "DownloadLinkInstall": $downloadUrl,
+                "DownloadLinkUpdate": $downloadUrl,
+                "IconUrl": "",
+                "Changelog": ""
+              }
+            ]' > public/plugin.json
 
-          cat <<EOF > public/version.json
-      {
-        "version": "$VERSION",
-        "tag": "$TAG",
-        "name": "$NAME",
-        "author": "$AUTHOR",
-        "punchline": "$PUNCHLINE",
-        "downloadUrl": "$DOWNLOAD_URL",
-        "releaseUrl": "https://github.com/$REPO/releases/tag/$TAG",
-        "publishedAt": "$PUBLISHED_AT",
-        "notes": $NOTES
-      }
-      EOF
+          # Build version.json using jq
+          if [ -z "$NOTES_FLAG" ]; then
+            jq -n \
+              --arg version "$VERSION" \
+              --arg tag "$TAG" \
+              --arg name "$NAME" \
+              --arg author "$AUTHOR" \
+              --arg punchline "$PUNCHLINE" \
+              --arg downloadUrl "$DOWNLOAD_URL" \
+              --arg releaseUrl "https://github.com/$REPO/releases/tag/$TAG" \
+              --arg publishedAt "$PUBLISHED_AT" \
+              '{
+                "version": $version,
+                "tag": $tag,
+                "name": $name,
+                "author": $author,
+                "punchline": $punchline,
+                "downloadUrl": $downloadUrl,
+                "releaseUrl": $releaseUrl,
+                "publishedAt": $publishedAt,
+                "notes": null
+              }' > public/version.json
+          else
+            jq -n \
+              --arg version "$VERSION" \
+              --arg tag "$TAG" \
+              --arg name "$NAME" \
+              --arg author "$AUTHOR" \
+              --arg punchline "$PUNCHLINE" \
+              --arg downloadUrl "$DOWNLOAD_URL" \
+              --arg releaseUrl "https://github.com/$REPO/releases/tag/$TAG" \
+              --arg publishedAt "$PUBLISHED_AT" \
+              --arg notes "$NOTES_FLAG" \
+              '{
+                "version": $version,
+                "tag": $tag,
+                "name": $name,
+                "author": $author,
+                "punchline": $punchline,
+                "downloadUrl": $downloadUrl,
+                "releaseUrl": $releaseUrl,
+                "publishedAt": $publishedAt,
+                "notes": $notes
+              }' > public/version.json
+          fi
 
           echo "Generated plugin.json and version.json for v$VERSION"
 
