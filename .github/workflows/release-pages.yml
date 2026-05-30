@@ -80,7 +80,7 @@ jobs:
           DESCRIPTION="$(jq -r '.Description // ""' SteamyCactbot/SteamyCactbot.json)"
           TAGS="$(jq '.Tags // []' SteamyCactbot/SteamyCactbot.json)"
 
-          DOWNLOAD_URL="https://github.com/$REPO/releases/download/$TAG/${NAME}.zip"
+          DOWNLOAD_URL="https://github.com/$REPO/releases/latest/download/${NAME}.zip"
 
           mkdir -p public
 
@@ -96,7 +96,8 @@ jobs:
             "ApplicableVersion": "any",
             "Tags": $TAGS,
             "Version": "$VERSION",
-            "DownloadLink": "$DOWNLOAD_URL",
+            "DownloadLinkInstall": "$DOWNLOAD_URL",
+            "DownloadLinkUpdate": "$DOWNLOAD_URL",
             "DownloadCount": 0,
             "IconUrl": "",
             "IsHide": false,
