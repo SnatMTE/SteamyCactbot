@@ -39,8 +39,10 @@ jobs:
       - name: Download Dalamud
         shell: pwsh
         run: |
+          $dst = "$env:AppData\XIVLauncher\addon\Hooks\dev"
+          New-Item -ItemType Directory -Path $dst -Force | Out-Null
           Invoke-WebRequest -Uri https://goatcorp.github.io/dalamud-distrib/latest.zip -OutFile latest.zip
-          Expand-Archive -Force latest.zip "$env:AppData\XIVLauncher\addon\Hooks\dev"
+          Expand-Archive -Force latest.zip $dst
 
       - name: Build with dotnet
         shell: pwsh
