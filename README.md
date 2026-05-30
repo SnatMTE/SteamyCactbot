@@ -28,6 +28,14 @@ This plugin was created purely for my portfolio to demonstrate working with **C#
 - [IINACT](https://github.com/marzent/IINACT) - must be running with its WebSocket server on port **10501** (default)
 - [Cactbot](https://github.com/OverlayPlugin/cactbot)
 
+## Installation
+
+This plugin will **not** be submitted to the official Dalamud plugin repository.
+
+To install it, add the following URL to Dalamud's settings under external plugin repositories:
+
+- `https://snatmte.github.io/SteamyCactbot/plugin.json`
+
 ## Disclaimer
 
 Use at your own risk. This plugin is provided as-is with no guarantees of stability, compatibility, or ongoing support.
