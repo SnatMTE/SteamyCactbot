@@ -23,6 +23,7 @@ This plugin was created purely for my portfolio to demonstrate working with **C#
 ## Requirements
 
 - [Dalamud](https://github.com/goatcorp/Dalamud) / [XIVLauncher](https://github.com/goatcorp/FFXIVQuickLauncher)
+- [IINACT](https://github.com/marzent/IINACT) - must be running with its WebSocket server on port **10501** (default)
 - [Cactbot](https://github.com/OverlayPlugin/cactbot)
 
 ## Disclaimer
