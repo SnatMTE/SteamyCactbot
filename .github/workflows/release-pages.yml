@@ -75,11 +75,11 @@ jobs:
           $repo = "${{ github.repository }}"
 
           if ("${{ github.event_name }}" -eq "workflow_dispatch") {
-            $notes = if ([string]::IsNullOrEmpty($notesRaw)) { "null" } else { ($notesRaw | ConvertTo-Json) }
+            $notes = if ([string]::IsNullOrEmpty($notesRaw)) { $null } else { $notesRaw }
             $publishedAt = (Get-Date -Format "yyyy-MM-ddTHH:mm:ssZ")
           } else {
             $body = "${{ github.event.release.body }}"
-            $notes = if ([string]::IsNullOrEmpty($body)) { "null" } else { ($body | ConvertTo-Json) }
+            $notes = if ([string]::IsNullOrEmpty($body)) { $null } else { $body }
             $publishedAt = "${{ github.event.release.published_at }}"
           }
 
@@ -101,43 +101,41 @@ jobs:
           New-Item -ItemType Directory -Path public -Force | Out-Null
 
           # Plugin manifest (pluginmaster JSON array for Dalamud)
-          $pluginJson = @"
-[
-  {
-    "Author": "$author",
-    "Name": "$name",
-    "InternalName": "$internalName",
-    "AssemblyVersion": "$assemblyVersion",
-    "Punchline": "$punchline",
-    "Description": "$description",
-    "ApplicableVersion": "$applicableVersion",
-    "DalamudApiLevel": $dalamudApiLevel,
-    "RepoUrl": "https://github.com/$repo",
-    "DownloadCount": 0,
-    "LastUpdate": $([int][double]::Parse((Get-Date -UFormat %s))),
-    "DownloadLinkInstall": "$downloadUrl",
-    "DownloadLinkUpdate": "$downloadUrl",
-    "IconUrl": "",
-    "Changelog": ""
-  }
-]
-"@
+          $pluginObj = @(
+            @{
+              Author = $author
+              Name = $name
+              InternalName = $internalName
+              AssemblyVersion = $assemblyVersion
+              Punchline = $punchline
+              Description = $description
+              ApplicableVersion = $applicableVersion
+              DalamudApiLevel = $dalamudApiLevel
+              RepoUrl = "https://github.com/$repo"
+              DownloadCount = 0
+              LastUpdate = [int][double]::Parse((Get-Date -UFormat %s))
+              DownloadLinkInstall = $downloadUrl
+              DownloadLinkUpdate = $downloadUrl
+              IconUrl = ""
+              Changelog = ""
+            }
+          )
+          $pluginJson = $pluginObj | ConvertTo-Json -Depth 3
           Set-Content -Path "public/plugin.json" -Value $pluginJson
 
           # Simple version.json for the webpage
-          $versionJson = @"
-{
-  "version": "$version",
-  "tag": "$tag",
-  "name": "$name",
-  "author": "$author",
-  "punchline": "$punchline",
-  "downloadUrl": "$downloadUrl",
-  "releaseUrl": "https://github.com/$repo/releases/tag/$tag",
-  "publishedAt": "$publishedAt",
-  "notes": $notes
-}
-"@
+          $versionObj = @{
+            version = $version
+            tag = $tag
+            name = $name
+            author = $author
+            punchline = $punchline
+            downloadUrl = $downloadUrl
+            releaseUrl = "https://github.com/$repo/releases/tag/$tag"
+            publishedAt = $publishedAt
+            notes = $notes
+          }
+          $versionJson = $versionObj | ConvertTo-Json -Depth 2
           Set-Content -Path "public/version.json" -Value $versionJson
 
           Write-Output "Generated plugin.json and version.json for v$version"
