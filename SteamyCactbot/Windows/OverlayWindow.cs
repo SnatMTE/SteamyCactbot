@@ -27,6 +27,9 @@ public class OverlayWindow : Window, IDisposable
     private static readonly Vector4 ColorAlert  = new(1.00f, 0.65f, 0.00f, 1f); // orange
     private static readonly Vector4 ColorInfo   = new(1.00f, 1.00f, 1.00f, 1f); // white
 
+    // Padding inside the overlay box
+    private const float BoxPadding = 12f;
+
     // -----------------------------------------------------------------------
     // Dependencies
     // -----------------------------------------------------------------------
@@ -48,10 +51,8 @@ public class OverlayWindow : Window, IDisposable
     public OverlayWindow(Plugin plugin, WebSocketService wsService)
         : base("##CactbotOverlay",
                ImGuiWindowFlags.NoTitleBar        |
-               ImGuiWindowFlags.NoResize          |
                ImGuiWindowFlags.NoScrollbar       |
                ImGuiWindowFlags.NoScrollWithMouse |
-               ImGuiWindowFlags.AlwaysAutoResize  |
                ImGuiWindowFlags.NoSavedSettings   |   // we persist position ourselves
                ImGuiWindowFlags.NoFocusOnAppearing)
     {
@@ -91,6 +92,10 @@ public class OverlayWindow : Window, IDisposable
 
             positionInitialised = true;
         }
+
+        // Always apply the configured box size so changes from the config window
+        // take effect immediately.
+        ImGui.SetNextWindowSize(new Vector2(cfg.OverlayWidth, cfg.OverlayHeight), ImGuiCond.Always);
 
         // Keep the overlay plain while optionally showing a subtle drag surface.
         ImGui.SetNextWindowBgAlpha(moveMode ? 0.15f : 0.00f);
@@ -148,92 +153,94 @@ public class OverlayWindow : Window, IDisposable
         frameAlerts.AddRange(wsService.GetActiveAlerts(cfg.MaxVisibleAlerts));
 
         // ------------------------------------------------------------------
+        // Box dimensions for wrapping and centering
+        // ------------------------------------------------------------------
+        var boxSize = ImGui.GetWindowSize();
+        var wrapWidth = Math.Max(1f, boxSize.X - BoxPadding * 2f);
+        var lineHeight = ImGui.GetFontSize() * cfg.AlertFontScale;
+
+        // ------------------------------------------------------------------
         // Nothing to show - render a subtle drag-handle / status dot so the
         // user can still reposition the overlay outside of combat
         // ------------------------------------------------------------------
         if (frameAlerts.Count == 0)
         {
-            // No alerts to show - overlay intentionally blank.
-            // The window still exists so the user can reposition it in move mode.
+            if (moveMode)
+            {
+                ImGui.SetCursorPos(new Vector2(BoxPadding, BoxPadding));
+                ImGui.TextColored(new Vector4(0.85f, 0.85f, 0.85f, 0.75f), "Move mode: drag to reposition. Use /cactbot to finish.");
+            }
         }
         else
         {
             // --------------------------------------------------------------
-            // Render each alert stacked top-to-bottom with fade-out
+            // Render each alert centered in the box, stacked vertically.
+            // Each alert's text wraps to fit the box width, with every line
+            // individually centered horizontally and the block centered
+            // vertically within the box.
             // --------------------------------------------------------------
-            foreach (var alert in frameAlerts)
+            ImGui.SetWindowFontScale(cfg.AlertFontScale);
+
+            // Measure total height of all alert text blocks
+            var totalHeight = 0f;
+            var textSizes = new Vector2[frameAlerts.Count];
+            for (int i = 0; i < frameAlerts.Count; i++)
             {
+                var text = BuildDisplayText(frameAlerts[i]);
+                textSizes[i] = ImGui.CalcTextSize(text, wrapWidth);
+                totalHeight += textSizes[i].Y;
+                if (i > 0) totalHeight += 4f;
+            }
+
+            // Vertically center the alert block stack in the box
+            var cursorY = Math.Max(BoxPadding, (boxSize.Y - totalHeight) * 0.5f);
+            var windowPos = ImGui.GetWindowPos();
+
+            for (int i = 0; i < frameAlerts.Count; i++)
+            {
+                var alert = frameAlerts[i];
+                var text = BuildDisplayText(alert);
+                var textSize = textSizes[i];
+
                 // Determine base colour – per-type or custom override
                 var baseColor = cfg.UseCustomAlertColor ? cfg.AlertTextColor : GetAlertColor(alert.Type);
-
-                // Blend the base colour's alpha with the fade factor so alerts
-                // smoothly disappear in their final second
                 var displayColor = new Vector4(
-                    baseColor.X,
-                    baseColor.Y,
-                    baseColor.Z,
+                    baseColor.X, baseColor.Y, baseColor.Z,
                     baseColor.W * alert.FadeAlpha);
 
-                // Compute display text - both countdown and cast bar update every frame
-                string displayText;
-                if (alert.CountdownEndTime.HasValue)
-                {
-                    var remaining = (alert.CountdownEndTime.Value - DateTime.UtcNow).TotalSeconds;
-                    displayText = remaining > 0 ? $"Engage in {remaining:F1}s!" : "Engage!";
-                }
-                else if (alert.CastEndTime.HasValue)
-                {
-                    var remaining = (alert.CastEndTime.Value - DateTime.UtcNow).TotalSeconds;
-                    displayText = remaining > 0
-                        ? $"{alert.Text} ({remaining:F1}s)"
-                        : alert.Text;
-                }
-                else
-                {
-                    displayText = alert.Text;
-                }
+                // Wrap the text into individual lines for per-line centering
+                var lines = WrapTextToWidth(text, wrapWidth, lineHeight);
+                var colorU32 = ImGui.ColorConvertFloat4ToU32(displayColor);
+                var drawList = ImGui.GetWindowDrawList();
 
-                ImGui.SetWindowFontScale(cfg.AlertFontScale);
-
-                if (cfg.AlertTextOutline)
+                for (int l = 0; l < lines.Count; l++)
                 {
-                    var drawList = ImGui.GetWindowDrawList();
-                    var cursorPos = ImGui.GetCursorScreenPos();
-                    var textSize = ImGui.CalcTextSize(displayText);
-                    var outlineColorU32 = ImGui.ColorConvertFloat4ToU32(cfg.AlertOutlineColor);
-                    var textColorU32    = ImGui.ColorConvertFloat4ToU32(displayColor);
+                    var lineWidth = ImGui.CalcTextSize(lines[l]).X;
+                    // Center each line horizontally within the box
+                    var lineX = Math.Max(0f, (boxSize.X - lineWidth) * 0.5f);
+                    var lineY = cursorY + l * lineHeight;
+                    var screenPos = windowPos + new Vector2(lineX, lineY);
 
-                    // Draw outline by stamping the text at ±1 px offsets
-                    for (int dx = -1; dx <= 1; dx++)
+                    if (cfg.AlertTextOutline)
                     {
-                        for (int dy = -1; dy <= 1; dy++)
-                        {
-                            if (dx == 0 && dy == 0) continue;
-                            drawList.AddText(cursorPos + new Vector2(dx, dy), outlineColorU32, displayText);
-                        }
+                        var outlineU32 = ImGui.ColorConvertFloat4ToU32(cfg.AlertOutlineColor);
+                        for (int dx = -1; dx <= 1; dx++)
+                            for (int dy = -1; dy <= 1; dy++)
+                                if (dx != 0 || dy != 0)
+                                    drawList.AddText(screenPos + new Vector2(dx, dy), outlineU32, lines[l]);
                     }
 
-                    drawList.AddText(cursorPos, textColorU32, displayText);
-                    ImGui.Dummy(textSize);
-                }
-                else
-                {
-                    ImGui.TextColored(displayColor, displayText);
+                    drawList.AddText(screenPos, colorU32, lines[l]);
                 }
 
-                ImGui.SetWindowFontScale(1.0f);
+                cursorY += textSize.Y + 4f;
             }
-        }
 
-        if (moveMode)
-        {
-            ImGui.Spacing();
-            ImGui.TextColored(new Vector4(0.85f, 0.85f, 0.85f, 0.75f), "Move mode: drag this anchor. Use /cactbot to finish.");
+            ImGui.SetWindowFontScale(1.0f);
         }
 
         // ------------------------------------------------------------------
-        // Persist position when the user drags the window
-        // GetWindowPos() is valid here because we are inside a Begin/End block
+        // Persist position AND size when the user drags/resizes the window
         // ------------------------------------------------------------------
         var pos = ImGui.GetWindowPos();
         if (MathF.Abs(pos.X - cfg.OverlayX) > 0.5f || MathF.Abs(pos.Y - cfg.OverlayY) > 0.5f)
@@ -242,6 +249,84 @@ public class OverlayWindow : Window, IDisposable
             cfg.OverlayY = pos.Y;
             cfg.Save();
         }
+
+        var currentSize = ImGui.GetWindowSize();
+        if (MathF.Abs(currentSize.X - cfg.OverlayWidth) > 0.5f || MathF.Abs(currentSize.Y - cfg.OverlayHeight) > 0.5f)
+        {
+            cfg.OverlayWidth = currentSize.X;
+            cfg.OverlayHeight = currentSize.Y;
+            cfg.Save();
+        }
+    }
+
+    // -----------------------------------------------------------------------
+    // Helpers
+    // -----------------------------------------------------------------------
+
+    /// <summary>
+    /// Builds the display string for an alert, handling countdown and cast bar display.
+    /// </summary>
+    private static string BuildDisplayText(CactbotAlert alert)
+    {
+        if (alert.CountdownEndTime.HasValue)
+        {
+            var remaining = (alert.CountdownEndTime.Value - DateTime.UtcNow).TotalSeconds;
+            return remaining > 0 ? $"Engage in {remaining:F1}s!" : "Engage!";
+        }
+        else if (alert.CastEndTime.HasValue)
+        {
+            var remaining = (alert.CastEndTime.Value - DateTime.UtcNow).TotalSeconds;
+            return remaining > 0
+                ? $"{alert.Text} ({remaining:F1}s)"
+                : alert.Text;
+        }
+        else
+        {
+            return alert.Text;
+        }
+    }
+
+    /// <summary>
+    /// Word-wraps <paramref name="text"/> to fit within <paramref name="wrapWidth"/>
+    /// pixels, returning a list of individual lines. Each line is then centered
+    /// independently by the caller.
+    /// </summary>
+    internal static List<string> WrapTextToWidth(string text, float wrapWidth, float lineHeight)
+    {
+        var lines = new List<string>();
+        if (string.IsNullOrEmpty(text))
+        {
+            lines.Add(string.Empty);
+            return lines;
+        }
+
+        var words = text.Split(' ');
+        var currentLine = string.Empty;
+
+        foreach (var word in words)
+        {
+            var testLine = currentLine.Length == 0 ? word : currentLine + " " + word;
+            var testSize = ImGui.CalcTextSize(testLine);
+
+            if (testSize.X > wrapWidth && currentLine.Length > 0)
+            {
+                lines.Add(currentLine);
+                currentLine = word;
+            }
+            else
+            {
+                currentLine = testLine;
+            }
+        }
+
+        if (currentLine.Length > 0)
+            lines.Add(currentLine);
+
+        // Ensure at least one entry if text was empty after trimming
+        if (lines.Count == 0)
+            lines.Add(string.Empty);
+
+        return lines;
     }
 
     // -----------------------------------------------------------------------

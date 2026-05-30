@@ -396,21 +396,6 @@ public sealed class WebSocketService : IDisposable
                 }
                 break;
 
-            case 25: // NetworkDeath: [25|ts|targetId|targetName|sourceId|sourceName|...]
-                if (parts.Length >= 4)
-                {
-                    var victim = parts[3];
-                    var source = parts.Length >= 6 ? parts[5] : "";
-                    if (!string.IsNullOrWhiteSpace(victim))
-                    {
-                        var text = string.IsNullOrWhiteSpace(source)
-                            ? $"{victim} was defeated"
-                            : $"{victim} defeated by {source}";
-                        EnqueueAlert(text, AlertType.Info, 3f);
-                    }
-                }
-                break;
-
             case 27: // NetworkTargetIcon (headmarker): [27|ts|?|targetName|markerId|...]
                 if (parts.Length >= 5)
                 {

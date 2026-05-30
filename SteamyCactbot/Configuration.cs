@@ -32,6 +32,12 @@ public class Configuration : IPluginConfiguration
     /// <summary>When true the overlay cannot be dragged; position is read-only.</summary>
     public bool LockOverlayPosition { get; set; } = false;
 
+    /// <summary>Width of the overlay box in pixels.</summary>
+    public float OverlayWidth { get; set; } = 500f;
+
+    /// <summary>Height of the overlay box in pixels.</summary>
+    public float OverlayHeight { get; set; } = 150f;
+
     // -----------------------------------------------------------------------
     // Display tweaks
     // -----------------------------------------------------------------------

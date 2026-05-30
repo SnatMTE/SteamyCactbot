@@ -28,7 +28,7 @@ public class ConfigWindow : Window, IDisposable
         Flags = ImGuiWindowFlags.NoResize    |
                 ImGuiWindowFlags.NoCollapse;
 
-        Size          = new Vector2(620, 580);
+        Size          = new Vector2(620, 720);
         SizeCondition = ImGuiCond.Always;
 
         configuration      = plugin.Configuration;
@@ -209,6 +209,87 @@ public class ConfigWindow : Window, IDisposable
             overlayWindow.ResetPosition();   // re-apply saved coords next PreDraw
             configuration.Save();
         }
+
+        ImGui.Separator();
+
+        // ------------------------------------------------------------------
+        // Overlay box size
+        // ------------------------------------------------------------------
+        ImGui.TextColored(new Vector4(1.00f, 0.85f, 0.10f, 1f), "Overlay Box Size");
+        ImGui.Spacing();
+
+        var boxW = configuration.OverlayWidth;
+        var boxH = configuration.OverlayHeight;
+        ImGui.SetNextItemWidth(100f);
+        if (ImGui.DragFloat("Width", ref boxW, 1f, 100f, 2000f, "%.0f"))
+        {
+            configuration.OverlayWidth = Math.Clamp(boxW, 100f, 2000f);
+            configuration.Save();
+        }
+        ImGui.SameLine();
+        ImGui.SetNextItemWidth(100f);
+        if (ImGui.DragFloat("Height", ref boxH, 1f, 50f, 1000f, "%.0f"))
+        {
+            configuration.OverlayHeight = Math.Clamp(boxH, 50f, 1000f);
+            configuration.Save();
+        }
+
+        ImGui.Spacing();
+
+        // ------------------------------------------------------------------
+        // Preview – mirrors the overlay rendering (wrapping + centering)
+        // Resize the inputs above to see how text wraps and centers.
+        // ------------------------------------------------------------------
+        ImGui.TextColored(new Vector4(1.00f, 0.85f, 0.10f, 1f), "Preview");
+        ImGui.Spacing();
+
+        var previewW = Math.Clamp(configuration.OverlayWidth, 100f, ImGui.GetContentRegionAvail().X);
+        var previewH = Math.Min(configuration.OverlayHeight, 250f);
+        ImGui.BeginChild("##PreviewBox", new Vector2(previewW, previewH), true,
+            ImGuiWindowFlags.NoScrollbar | ImGuiWindowFlags.NoScrollWithMouse);
+
+        var sampleText = "Sample Alert: Stack for raidwide!";
+        var previewWrapWidth = Math.Max(1f, ImGui.GetWindowWidth() - 24f);
+        var previewLineHeight = ImGui.GetFontSize() * configuration.AlertFontScale;
+
+        ImGui.SetWindowFontScale(configuration.AlertFontScale);
+
+        var previewLines = OverlayWindow.WrapTextToWidth(sampleText, previewWrapWidth, previewLineHeight);
+        var totalPreviewHeight = previewLines.Count * previewLineHeight;
+        var previewBoxSize = ImGui.GetWindowSize();
+        var previewStartY = Math.Max(0f, (previewBoxSize.Y - totalPreviewHeight) * 0.5f);
+
+        var previewDrawList = ImGui.GetWindowDrawList();
+        var previewWindowPos = ImGui.GetWindowPos();
+        var previewBaseColor = configuration.UseCustomAlertColor
+            ? configuration.AlertTextColor
+            : new Vector4(1f, 1f, 1f, 1f);
+        var previewColorU32 = ImGui.ColorConvertFloat4ToU32(previewBaseColor);
+
+        for (int l = 0; l < previewLines.Count; l++)
+        {
+            var lineW = ImGui.CalcTextSize(previewLines[l]).X;
+            var lineX = Math.Max(0f, (previewBoxSize.X - lineW) * 0.5f);
+            var lineY = previewStartY + l * previewLineHeight;
+            var screenPt = previewWindowPos + new Vector2(lineX, lineY);
+
+            if (configuration.AlertTextOutline)
+            {
+                var outlineU32 = ImGui.ColorConvertFloat4ToU32(configuration.AlertOutlineColor);
+                for (int dx = -1; dx <= 1; dx++)
+                    for (int dy = -1; dy <= 1; dy++)
+                        if (dx != 0 || dy != 0)
+                            previewDrawList.AddText(screenPt + new Vector2(dx, dy), outlineU32, previewLines[l]);
+            }
+
+            previewDrawList.AddText(screenPt, previewColorU32, previewLines[l]);
+        }
+
+        ImGui.SetWindowFontScale(1.0f);
+        ImGui.EndChild();
+
+        ImGui.Spacing();
+        ImGui.TextColored(new Vector4(0.55f, 0.55f, 0.55f, 1f), "Adjust Width/Height above to see how text wraps and centers inside the box.");
 
         ImGui.Separator();
 
