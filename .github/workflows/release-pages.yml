@@ -1,4 +1,4 @@
-name: Release — Update JSON & Deploy Pages
+name: Release - Update JSON & Deploy Pages
 
 on:
   release:
@@ -6,13 +6,13 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: "Version number (e.g. 0.0.0.2)"
+        description: Version number (e.g. 0.0.0.2)
         required: true
       tag:
-        description: "Git tag (e.g. v0.0.0.2)"
+        description: Git tag (e.g. v0.0.0.2)
         required: true
       notes:
-        description: "Release notes (optional)"
+        description: Release notes (optional)
         required: false
 
 permissions:
@@ -21,8 +21,8 @@ permissions:
   id-token: write
 
 jobs:
-  build-and-deploy:
-    runs-on: ubuntu-latest
+  build:
+    runs-on: windows-2022
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
@@ -31,112 +31,125 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Extract version from release tag
+      - name: Install .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Download Dalamud
+        shell: pwsh
+        run: |
+          Invoke-WebRequest -Uri https://goatcorp.github.io/dalamud-distrib/latest.zip -OutFile latest.zip
+          Expand-Archive -Force latest.zip "$env:AppData\XIVLauncher\addon\Hooks\dev"
+
+      - name: Build with dotnet
+        shell: pwsh
+        run: dotnet build .\SteamyCactbot\SteamyCactbot.csproj --configuration Release
+
+      - name: Extract version info
         id: version
-        shell: bash
+        shell: pwsh
         run: |
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            echo "version=${{ inputs.version }}" >> "$GITHUB_OUTPUT"
-            echo "tag=${{ inputs.tag }}" >> "$GITHUB_OUTPUT"
-            echo "notes=${{ inputs.notes }}" >> "$GITHUB_OUTPUT"
-            echo "Extracted version: ${{ inputs.version }}"
-          else
-            # Strip leading "v" or "V" from tag, e.g. "v0.0.0.2" → "0.0.0.2"
-            TAG="${{ github.event.release.tag_name }}"
-            CLEAN="${TAG#v}"
-            CLEAN="${CLEAN#V}"
-            echo "version=$CLEAN" >> "$GITHUB_OUTPUT"
-            echo "tag=$TAG" >> "$GITHUB_OUTPUT"
-            echo "Extracted version: $CLEAN"
-          fi
+          if ("${{ github.event_name }}" -eq "workflow_dispatch") {
+            "version=${{ inputs.version }}" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+            "tag=${{ inputs.tag }}" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+            $rawNotes = "${{ inputs.notes }}"
+            if ([string]::IsNullOrEmpty($rawNotes)) { $rawNotes = "" }
+            "notes=$rawNotes" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+            Write-Output "Using manual inputs: ${{ inputs.version }}"
+          } else {
+            $tag = "${{ github.event.release.tag_name }}"
+            $clean = $tag -replace '^[vV]', ''
+            "version=$clean" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+            "tag=$tag" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+            Write-Output "Extracted version: $clean"
+          }
 
-      - name: Generate version JSON
+      - name: Generate plugin JSON
         id: generate
-        shell: bash
+        shell: pwsh
         run: |
-          VERSION="${{ steps.version.outputs.version }}"
+          $version = "${{ steps.version.outputs.version }}"
+          $tag = "${{ steps.version.outputs.tag }}"
+          $notesRaw = "${{ steps.version.outputs.notes }}"
+          $repo = "${{ github.repository }}"
 
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            TAG="${{ steps.version.outputs.tag }}"
-            NOTES_RAW="${{ steps.version.outputs.notes }}"
-            if [ -z "$NOTES_RAW" ]; then
-              NOTES="null"
-            else
-              NOTES=$(echo "$NOTES_RAW" | jq -Rs '.')
-            fi
-            PUBLISHED_AT="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
-          else
-            TAG="${{ github.event.release.tag_name }}"
-            NOTES=$(echo '${{ github.event.release.body }}' | jq -Rs '.')
-            PUBLISHED_AT="${{ github.event.release.published_at }}"
-          fi
-
-          REPO="${{ github.repository }}"
-
-          # Read existing metadata from the Dalamud manifest
-          AUTHOR="$(jq -r '.Author // "Snat"' SteamyCactbot/SteamyCactbot.json)"
-          NAME="$(jq -r '.Name // "CactbotUI"' SteamyCactbot/SteamyCactbot.json)"
-          PUNCHLINE="$(jq -r '.Punchline // ""' SteamyCactbot/SteamyCactbot.json)"
-          DESCRIPTION="$(jq -r '.Description // ""' SteamyCactbot/SteamyCactbot.json)"
-          TAGS="$(jq '.Tags // []' SteamyCactbot/SteamyCactbot.json)"
-
-          DOWNLOAD_URL="https://github.com/$REPO/releases/latest/download/${NAME}.zip"
-
-          mkdir -p public
-
-          # ----------------------------------------------------------------
-          # 1. Plugin manifest (Dalamud update channel format)
-          # ----------------------------------------------------------------
-          cat <<EOF > public/plugin.json
-          {
-            "Author": "$AUTHOR",
-            "Name": "$NAME",
-            "Punchline": "$PUNCHLINE",
-            "Description": "$DESCRIPTION",
-            "ApplicableVersion": "any",
-            "Tags": $TAGS,
-            "Version": "$VERSION",
-            "DownloadLinkInstall": "$DOWNLOAD_URL",
-            "DownloadLinkUpdate": "$DOWNLOAD_URL",
-            "DownloadCount": 0,
-            "IconUrl": "",
-            "IsHide": false,
-            "IsTestingExclusive": false,
-            "LastUpdate": $(date +%s)
+          if ("${{ github.event_name }}" -eq "workflow_dispatch") {
+            $notes = if ([string]::IsNullOrEmpty($notesRaw)) { "null" } else { ($notesRaw | ConvertTo-Json) }
+            $publishedAt = (Get-Date -Format "yyyy-MM-ddTHH:mm:ssZ")
+          } else {
+            $body = "${{ github.event.release.body }}"
+            $notes = if ([string]::IsNullOrEmpty($body)) { "null" } else { ($body | ConvertTo-Json) }
+            $publishedAt = "${{ github.event.release.published_at }}"
           }
-          EOF
 
-          # ----------------------------------------------------------------
-          # 2. Simple version.json (for your webpage)
-          # ----------------------------------------------------------------
-          cat <<EOF > public/version.json
-          {
-            "version": "$VERSION",
-            "tag": "$TAG",
-            "name": "$NAME",
-            "author": "$AUTHOR",
-            "punchline": "$PUNCHLINE",
-            "downloadUrl": "$DOWNLOAD_URL",
-            "releaseUrl": "https://github.com/$REPO/releases/tag/$TAG",
-            "publishedAt": "$PUBLISHED_AT",
-            "notes": $NOTES
-          }
-          EOF
+          $downloadUrl = "https://github.com/$repo/releases/latest/download/CactbotUI.zip"
 
-          echo "Generated plugin.json and version.json for v$VERSION"
+          # Read the built Dalamud manifest
+          $manifestPath = "SteamyCactbot\bin\x64\Release\CactbotUI.json"
+          $m = Get-Content $manifestPath | ConvertFrom-Json
+
+          $author = $m.Author
+          $name = $m.Name
+          $internalName = $m.InternalName
+          $assemblyVersion = $m.AssemblyVersion
+          $punchline = $m.Punchline
+          $description = $m.Description
+          $applicableVersion = $m.ApplicableVersion
+          $dalamudApiLevel = $m.DalamudApiLevel
+
+          New-Item -ItemType Directory -Path public -Force | Out-Null
+
+          # Plugin manifest (pluginmaster JSON array for Dalamud)
+          $pluginJson = @"
+[
+  {
+    "Author": "$author",
+    "Name": "$name",
+    "InternalName": "$internalName",
+    "AssemblyVersion": "$assemblyVersion",
+    "Punchline": "$punchline",
+    "Description": "$description",
+    "ApplicableVersion": "$applicableVersion",
+    "DalamudApiLevel": $dalamudApiLevel,
+    "RepoUrl": "https://github.com/$repo",
+    "DownloadCount": 0,
+    "LastUpdate": $([int][double]::Parse((Get-Date -UFormat %s))),
+    "DownloadLinkInstall": "$downloadUrl",
+    "DownloadLinkUpdate": "$downloadUrl",
+    "IconUrl": "",
+    "Changelog": ""
+  }
+]
+"@
+          Set-Content -Path "public/plugin.json" -Value $pluginJson
+
+          # Simple version.json for the webpage
+          $versionJson = @"
+{
+  "version": "$version",
+  "tag": "$tag",
+  "name": "$name",
+  "author": "$author",
+  "punchline": "$punchline",
+  "downloadUrl": "$downloadUrl",
+  "releaseUrl": "https://github.com/$repo/releases/tag/$tag",
+  "publishedAt": "$publishedAt",
+  "notes": $notes
+}
+"@
+          Set-Content -Path "public/version.json" -Value $versionJson
+
+          Write-Output "Generated plugin.json and version.json for v$version"
 
       - name: Copy static page assets
-        shell: bash
+        shell: pwsh
         run: |
-          mkdir -p public
-          # Copy the docs page if it exists, or create a default one
-          if [ -f docs/index.html ]; then
-            cp docs/index.html public/
-            echo "Copied docs/index.html"
-          fi
-
-      - name: Setup Pages
-        uses: actions/configure-pages@v5
+          New-Item -ItemType Directory -Path public -Force | Out-Null
+          if (Test-Path "docs/index.html") {
+            Copy-Item "docs/index.html" "public/index.html"
+            Write-Output "Copied docs/index.html"
+          }
 
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3
