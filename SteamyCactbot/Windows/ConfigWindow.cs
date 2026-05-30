@@ -157,6 +157,44 @@ public class ConfigWindow : Window, IDisposable
             configuration.Save();
         }
 
+        // ------------------------------------------------------------------
+        // Text colour override
+        // ------------------------------------------------------------------
+        var useCustomColor = configuration.UseCustomAlertColor;
+        if (ImGui.Checkbox("Override alert text colour", ref useCustomColor))
+        {
+            configuration.UseCustomAlertColor = useCustomColor;
+            configuration.Save();
+        }
+        if (useCustomColor)
+        {
+            var textCol = configuration.AlertTextColor;
+            if (ImGui.ColorEdit4("Text colour", ref textCol, ImGuiColorEditFlags.NoInputs | ImGuiColorEditFlags.AlphaPreviewHalf))
+            {
+                configuration.AlertTextColor = textCol;
+                configuration.Save();
+            }
+        }
+
+        // ------------------------------------------------------------------
+        // Text outline
+        // ------------------------------------------------------------------
+        var outline = configuration.AlertTextOutline;
+        if (ImGui.Checkbox("Text outline", ref outline))
+        {
+            configuration.AlertTextOutline = outline;
+            configuration.Save();
+        }
+        if (outline)
+        {
+            var outlineCol = configuration.AlertOutlineColor;
+            if (ImGui.ColorEdit4("Outline colour", ref outlineCol, ImGuiColorEditFlags.NoInputs | ImGuiColorEditFlags.AlphaPreviewHalf))
+            {
+                configuration.AlertOutlineColor = outlineCol;
+                configuration.Save();
+            }
+        }
+
         ImGui.Separator();
 
         // ------------------------------------------------------------------

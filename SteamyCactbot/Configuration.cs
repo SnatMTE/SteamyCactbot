@@ -1,5 +1,6 @@
 ﻿using Dalamud.Configuration;
 using System;
+using System.Numerics;
 
 namespace CactbotUI;
 
@@ -50,6 +51,22 @@ public class Configuration : IPluginConfiguration
     /// 1.0 = default size, 1.5 = 50 % larger, etc.
     /// </summary>
     public float AlertFontScale { get; set; } = 1.2f;
+
+    // -----------------------------------------------------------------------
+    // Text appearance
+    // -----------------------------------------------------------------------
+
+    /// <summary>Custom text color override for alert text (RGBA).</summary>
+    public Vector4 AlertTextColor { get; set; } = new(1.00f, 1.00f, 1.00f, 1f);
+
+    /// <summary>When true, uses <see cref="AlertTextColor"/> instead of per-type colors.</summary>
+    public bool UseCustomAlertColor { get; set; } = false;
+
+    /// <summary>When true, draws a dark outline behind alert text for readability.</summary>
+    public bool AlertTextOutline { get; set; } = false;
+
+    /// <summary>Color of the text outline (RGBA).</summary>
+    public Vector4 AlertOutlineColor { get; set; } = new(0.00f, 0.00f, 0.00f, 1f);
 
     // -----------------------------------------------------------------------
     // Persistence helper

@@ -163,7 +163,8 @@ public class OverlayWindow : Window, IDisposable
             // --------------------------------------------------------------
             foreach (var alert in frameAlerts)
             {
-                var baseColor = GetAlertColor(alert.Type);
+                // Determine base colour – per-type or custom override
+                var baseColor = cfg.UseCustomAlertColor ? cfg.AlertTextColor : GetAlertColor(alert.Type);
 
                 // Blend the base colour's alpha with the fade factor so alerts
                 // smoothly disappear in their final second
@@ -193,7 +194,33 @@ public class OverlayWindow : Window, IDisposable
                 }
 
                 ImGui.SetWindowFontScale(cfg.AlertFontScale);
-                ImGui.TextColored(displayColor, displayText);
+
+                if (cfg.AlertTextOutline)
+                {
+                    var drawList = ImGui.GetWindowDrawList();
+                    var cursorPos = ImGui.GetCursorScreenPos();
+                    var textSize = ImGui.CalcTextSize(displayText);
+                    var outlineColorU32 = ImGui.ColorConvertFloat4ToU32(cfg.AlertOutlineColor);
+                    var textColorU32    = ImGui.ColorConvertFloat4ToU32(displayColor);
+
+                    // Draw outline by stamping the text at ±1 px offsets
+                    for (int dx = -1; dx <= 1; dx++)
+                    {
+                        for (int dy = -1; dy <= 1; dy++)
+                        {
+                            if (dx == 0 && dy == 0) continue;
+                            drawList.AddText(cursorPos + new Vector2(dx, dy), outlineColorU32, displayText);
+                        }
+                    }
+
+                    drawList.AddText(cursorPos, textColorU32, displayText);
+                    ImGui.Dummy(textSize);
+                }
+                else
+                {
+                    ImGui.TextColored(displayColor, displayText);
+                }
+
                 ImGui.SetWindowFontScale(1.0f);
             }
         }
