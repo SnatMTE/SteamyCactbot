@@ -1,8 +1,8 @@
-# SteamyCactbot
+# Steamy Cactbot
 
 A [Dalamud](https://github.com/goatcorp/Dalamud) plugin that integrates [Cactbot](https://github.com/OverlayPlugin/cactbot) into Final Fantasy XIV.
 
-> **This is still in development.** UI elements are all over the place, and the actual text display currently is not easy to see.
+> **This is still in development.** UI elements are all over the place, and the actual text display is currently not easy to see.
 
 ## How it works
 
