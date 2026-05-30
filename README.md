@@ -2,6 +2,8 @@
 
 A [Dalamud](https://github.com/goatcorp/Dalamud) plugin that integrates [Cactbot](https://github.com/OverlayPlugin/cactbot) into Final Fantasy XIV.
 
+> **This is still in development.** UI elements are all over the place, and the actual text display currently is not easy to see.
+
 ## How it works
 
 - **Local relay HTTP server** - spins up a lightweight TCP-based HTTP server that proxies the Cactbot raidboss overlay from the remote source, injects a relay script inline, and serves your custom `raidboss-user.js` triggers.
