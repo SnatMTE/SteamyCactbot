@@ -366,54 +366,13 @@ public sealed class WebSocketService : IDisposable
 
         switch (typeCode)
         {
-            case 20: // NetworkStartsCasting: [20|ts|sourceId|sourceName|abilityId|abilityName|targetId|targetName|castTime|...]
-                if (parts.Length >= 8)
-                {
-                    var srcId       = parts[2];
-                    var srcName     = parts[3];
-                    var abilityName = parts[5];
-                    // Players have IDs like 1xxxxxxx; environment dummy is E0000000.
-                    // Everything else with an 8-char hex ID is an NPC/enemy.
-                    var isPlayer = srcId.StartsWith("1", StringComparison.OrdinalIgnoreCase) && srcId.Length == 8;
-                    var isEnv    = string.Equals(srcId, "E0000000", StringComparison.OrdinalIgnoreCase);
-                    var isNpc    = !string.IsNullOrWhiteSpace(srcId) && !isPlayer && !isEnv;
-                    if (isNpc && !string.IsNullOrWhiteSpace(abilityName) && !string.IsNullOrWhiteSpace(srcName))
-                    {
-                        // Parse the actual cast duration from field [8]; fall back to 4s
-                        var castSeconds = parts.Length >= 9 &&
-                            float.TryParse(parts[8], System.Globalization.NumberStyles.Float,
-                                System.Globalization.CultureInfo.InvariantCulture, out var ct) && ct > 0f
-                            ? ct : 4f;
-                        EnqueueAlert(new CactbotAlert
-                        {
-                            Text        = $"{srcName}: {abilityName}",
-                            Type        = AlertType.Alert,
-                            Duration    = castSeconds + 1f,  // 1s linger after cast completes
-                            ReceivedAt  = DateTime.UtcNow,
-                            CastEndTime = DateTime.UtcNow.AddSeconds(castSeconds)
-                        });
-                    }
-                }
+            case 20: // NetworkStartsCasting: raw cast info — suppressed; processed alerts come via BroadcastMessage
                 break;
 
-            case 27: // NetworkTargetIcon (headmarker): [27|ts|?|targetName|markerId|...]
-                if (parts.Length >= 5)
-                {
-                    var target = parts[3];
-                    var markerId = parts[4];
-                    if (!string.IsNullOrWhiteSpace(target))
-                        EnqueueAlert($"Headmarker on {target} ({markerId})", AlertType.Alert, 4f);
-                }
+            case 27: // NetworkTargetIcon (headmarker): suppressed; processed alerts come via BroadcastMessage
                 break;
 
-            case 33: // NetworkTether: [33|ts|?|sourceName|?|?|targetName|...]
-                if (parts.Length >= 7)
-                {
-                    var src = parts[3];
-                    var tgt = parts[6];
-                    if (!string.IsNullOrWhiteSpace(src) && !string.IsNullOrWhiteSpace(tgt))
-                        EnqueueAlert($"Tether: {src} → {tgt}", AlertType.Info, 3f);
-                }
+            case 33: // NetworkTether: suppressed; processed alerts come via BroadcastMessage
                 break;
 
             case 268: // Countdown: [268|ts|playerId|worldId|countdownTime|result|playerName|...]
