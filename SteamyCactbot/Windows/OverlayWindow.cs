@@ -153,18 +153,8 @@ public class OverlayWindow : Window, IDisposable
         // ------------------------------------------------------------------
         if (frameAlerts.Count == 0)
         {
-            var statusColor = wsService.IsConnected
-                ? new Vector4(1.00f, 1.00f, 1.00f, moveMode ? 0.70f : 0.45f)
-                : new Vector4(1.00f, 0.45f, 0.45f, moveMode ? 0.80f : 0.55f);
-
-            ImGui.SetWindowFontScale(cfg.AlertFontScale);
-            var statusText = wsService.IsConnected
-                ? (wsService.LogLineCount == 0
-                    ? "Connected - no log events yet (check /xlsettings)"
-                    : $"Connected - {wsService.LogLineCount} events received")
-                : "OverlayPlugin WebSocket disconnected";
-            ImGui.TextColored(statusColor, statusText);
-            ImGui.SetWindowFontScale(1.0f);
+            // No alerts to show - overlay intentionally blank.
+            // The window still exists so the user can reposition it in move mode.
         }
         else
         {
