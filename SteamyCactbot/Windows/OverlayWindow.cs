@@ -187,7 +187,7 @@ public class OverlayWindow : Window, IDisposable
             for (int i = 0; i < frameAlerts.Count; i++)
             {
                 var text = BuildDisplayText(frameAlerts[i]);
-                textSizes[i] = ImGui.CalcTextSize(text, wrapWidth);
+                textSizes[i] = ImGui.CalcTextSize(text, false, wrapWidth);
                 totalHeight += textSizes[i].Y;
                 if (i > 0) totalHeight += 4f;
             }
