@@ -44,9 +44,11 @@ jobs:
           Invoke-WebRequest -Uri https://goatcorp.github.io/dalamud-distrib/latest.zip -OutFile latest.zip
           Expand-Archive -Force latest.zip $dst
 
-      - name: Build with dotnet
+      - name: Restore and build
         shell: pwsh
-        run: dotnet build .\SteamyCactbot\SteamyCactbot.csproj --configuration Release
+        run: |
+          dotnet restore .\SteamyCactbot\SteamyCactbot.csproj --force-evaluate
+          dotnet build .\SteamyCactbot\SteamyCactbot.csproj --configuration Release --no-restore
 
       - name: Extract version info
         id: version
