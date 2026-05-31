@@ -73,12 +73,6 @@ public class Configuration : IPluginConfiguration
     /// </summary>
     public AlertFontPreset AlertFontPreset { get; set; } = AlertFontPreset.FfxivAxis;
 
-    /// <summary>
-    /// Visual text thickness multiplier.
-    /// 1.0 = normal weight, higher values draw progressively bolder text.
-    /// </summary>
-    public float AlertFontThickness { get; set; } = 1.0f;
-
     // -----------------------------------------------------------------------
     // Text appearance
     // -----------------------------------------------------------------------

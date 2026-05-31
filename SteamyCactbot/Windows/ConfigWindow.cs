@@ -156,13 +156,21 @@ public class ConfigWindow : Window, IDisposable
         }
 
         // ------------------------------------------------------------------
-        // Font scale slider
+        // Font scale controls
         // ------------------------------------------------------------------
-        var fontScale = configuration.AlertFontScale;
-        ImGui.SetNextItemWidth(120f);
-        if (ImGui.SliderFloat("Font scale", ref fontScale, 0.5f, 3.0f, "%.1fx"))
+        ImGui.Text("Font size");
+        ImGui.SameLine();
+        if (ImGui.Button("-") && configuration.AlertFontScale > 0.1f)
         {
-            configuration.AlertFontScale = fontScale;
+            configuration.AlertFontScale = Math.Max(0.1f, configuration.AlertFontScale - 0.1f);
+            configuration.Save();
+        }
+        ImGui.SameLine();
+        ImGui.Text($"{configuration.AlertFontScale:0.0}x");
+        ImGui.SameLine();
+        if (ImGui.Button("+"))
+        {
+            configuration.AlertFontScale = configuration.AlertFontScale + 0.1f;
             configuration.Save();
         }
 
@@ -172,15 +180,6 @@ public class ConfigWindow : Window, IDisposable
         if (ImGui.Combo("Alert font", ref fontPreset, FontPresetLabels, FontPresetLabels.Length))
         {
             configuration.AlertFontPreset = (AlertFontPreset)fontPreset;
-            configuration.Save();
-        }
-
-        // Text thickness slider
-        var fontThickness = configuration.AlertFontThickness;
-        ImGui.SetNextItemWidth(120f);
-        if (ImGui.SliderFloat("Font thickness", ref fontThickness, 1.0f, 3.0f, "%.1fx"))
-        {
-            configuration.AlertFontThickness = fontThickness;
             configuration.Save();
         }
 
@@ -262,62 +261,6 @@ public class ConfigWindow : Window, IDisposable
         }
 
         ImGui.Spacing();
-
-        // ------------------------------------------------------------------
-        // Preview – mirrors the overlay rendering (wrapping + centering)
-        // Resize the inputs above to see how text wraps and centers.
-        // ------------------------------------------------------------------
-        ImGui.TextColored(new Vector4(1.00f, 0.85f, 0.10f, 1f), "Preview");
-        ImGui.Spacing();
-
-        var previewW = Math.Clamp(configuration.OverlayWidth, 100f, ImGui.GetContentRegionAvail().X);
-        var previewH = Math.Min(configuration.OverlayHeight, 250f);
-        ImGui.BeginChild("##PreviewBox", new Vector2(previewW, previewH), true,
-            ImGuiWindowFlags.NoScrollbar | ImGuiWindowFlags.NoScrollWithMouse);
-
-        var sampleText = "Sample Alert: Stack for raidwide!";
-        var previewWrapWidth = Math.Max(1f, ImGui.GetWindowWidth() - 24f);
-
-        using var previewFontPush = overlayWindow.PushConfiguredAlertFont(configuration.AlertFontPreset);
-        var previewLineHeight = ImGui.GetFontSize() * configuration.AlertFontScale;
-        ImGui.SetWindowFontScale(configuration.AlertFontScale);
-
-        var previewLines = OverlayWindow.WrapTextToWidth(sampleText, previewWrapWidth, previewLineHeight);
-        var totalPreviewHeight = previewLines.Count * previewLineHeight;
-        var previewBoxSize = ImGui.GetWindowSize();
-        var previewStartY = Math.Max(0f, (previewBoxSize.Y - totalPreviewHeight) * 0.5f);
-
-        var previewDrawList = ImGui.GetWindowDrawList();
-        var previewWindowPos = ImGui.GetWindowPos();
-        var previewBaseColor = configuration.UseCustomAlertColor
-            ? configuration.AlertTextColor
-            : new Vector4(1f, 1f, 1f, 1f);
-        var previewColorU32 = ImGui.ColorConvertFloat4ToU32(previewBaseColor);
-
-        for (int l = 0; l < previewLines.Count; l++)
-        {
-            var lineW = ImGui.CalcTextSize(previewLines[l]).X;
-            var lineX = Math.Max(0f, (previewBoxSize.X - lineW) * 0.5f);
-            var lineY = previewStartY + l * previewLineHeight;
-            var screenPt = previewWindowPos + new Vector2(lineX, lineY);
-
-            if (configuration.AlertTextOutline)
-            {
-                var outlineU32 = ImGui.ColorConvertFloat4ToU32(configuration.AlertOutlineColor);
-                for (int dx = -1; dx <= 1; dx++)
-                    for (int dy = -1; dy <= 1; dy++)
-                        if (dx != 0 || dy != 0)
-                            previewDrawList.AddText(screenPt + new Vector2(dx, dy), outlineU32, previewLines[l]);
-            }
-
-            OverlayWindow.DrawTextWithThickness(previewDrawList, screenPt, previewColorU32, previewLines[l], configuration.AlertFontThickness);
-        }
-
-        ImGui.SetWindowFontScale(1.0f);
-        ImGui.EndChild();
-
-        ImGui.Spacing();
-        ImGui.TextColored(new Vector4(0.55f, 0.55f, 0.55f, 1f), "Adjust Width/Height above to see how text wraps and centers inside the box.");
 
         ImGui.Separator();
 

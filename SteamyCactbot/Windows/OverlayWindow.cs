@@ -156,12 +156,20 @@ public class OverlayWindow : Window, IDisposable
     {
         var cfg = plugin.Configuration;
         using var fontPush = PushConfiguredAlertFont(cfg.AlertFontPreset);
+        var showPreview = plugin.IsConfigUiOpen;
 
         // ------------------------------------------------------------------
         // Collect active alerts (thread-safe; expired entries are pruned)
         // ------------------------------------------------------------------
         frameAlerts.Clear();
-        frameAlerts.AddRange(wsService.GetActiveAlerts(cfg.MaxVisibleAlerts));
+        if (showPreview)
+        {
+            frameAlerts.AddRange(GetPreviewAlerts());
+        }
+        else
+        {
+            frameAlerts.AddRange(wsService.GetActiveAlerts(cfg.MaxVisibleAlerts));
+        }
 
         // ------------------------------------------------------------------
         // Box dimensions for wrapping and centering
@@ -241,7 +249,7 @@ public class OverlayWindow : Window, IDisposable
                                     drawList.AddText(screenPos + new Vector2(dx, dy), outlineU32, lines[l]);
                     }
 
-                    DrawTextWithThickness(drawList, screenPos, colorU32, lines[l], cfg.AlertFontThickness);
+                    drawList.AddText(screenPos, colorU32, lines[l]);
                 }
 
                 cursorY += textSize.Y + 4f;
@@ -286,27 +294,6 @@ public class OverlayWindow : Window, IDisposable
             AlertFontPreset.FfxivTrumpGothic => GetOrCreateTrumpGothicFontHandle().Push(),
             _ => GetOrCreateAxisFontHandle().Push(),
         };
-    }
-
-    public static void DrawTextWithThickness(ImDrawListPtr drawList, Vector2 screenPos, uint colorU32, string text, float thickness)
-    {
-        if (thickness <= 1.01f)
-        {
-            drawList.AddText(screenPos, colorU32, text);
-            return;
-        }
-
-        var radius = Math.Clamp((thickness - 1f) * 1.2f, 0f, 2.5f);
-        drawList.AddText(screenPos + new Vector2(-radius, 0f), colorU32, text);
-        drawList.AddText(screenPos + new Vector2(radius, 0f), colorU32, text);
-        drawList.AddText(screenPos + new Vector2(0f, -radius), colorU32, text);
-        drawList.AddText(screenPos + new Vector2(0f, radius), colorU32, text);
-        drawList.AddText(screenPos + new Vector2(-radius, -radius), colorU32, text);
-        drawList.AddText(screenPos + new Vector2(-radius, radius), colorU32, text);
-        drawList.AddText(screenPos + new Vector2(radius, -radius), colorU32, text);
-        drawList.AddText(screenPos + new Vector2(radius, radius), colorU32, text);
-
-        drawList.AddText(screenPos, colorU32, text);
     }
 
     private IFontHandle GetOrCreateAxisFontHandle()
@@ -394,4 +381,19 @@ public class OverlayWindow : Window, IDisposable
         AlertType.Alert => ColorAlert,
         _               => ColorInfo
     };
+
+    private static IEnumerable<CactbotAlert> GetPreviewAlerts()
+    {
+        yield return new CactbotAlert
+        {
+            Text = "Preview: Stack for raidwide!",
+            Duration = 9999f,
+        };
+
+        yield return new CactbotAlert
+        {
+            Text = "Preview: Move to safe spot.",
+            Duration = 9999f,
+        };
+    }
 }

@@ -136,6 +136,8 @@ public sealed class Plugin : IDalamudPlugin
     // -----------------------------------------------------------------------
     public void ToggleConfigUi() => ConfigWindow.Toggle();
 
+    public bool IsConfigUiOpen => ConfigWindow.IsOpen;
+
     public void ToggleMainUi()
     {
         OverlayWindow.ToggleMoveMode();
