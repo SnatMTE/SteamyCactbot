@@ -2,6 +2,8 @@ using System;
 using System.Collections.Generic;
 using System.Numerics;
 using Dalamud.Bindings.ImGui;
+using Dalamud.Interface.GameFonts;
+using Dalamud.Interface.ManagedFontAtlas;
 using Dalamud.Interface.Windowing;
 using CactbotUI.Models;
 using CactbotUI.Services;
@@ -35,6 +37,9 @@ public class OverlayWindow : Window, IDisposable
     // -----------------------------------------------------------------------
     private readonly Plugin          plugin;
     private readonly WebSocketService wsService;
+    private IFontHandle? axisFontHandle;
+    private IFontHandle? jupiterFontHandle;
+    private IFontHandle? trumpGothicFontHandle;
 
     // Re-used every frame to avoid per-frame heap allocation
     private readonly List<CactbotAlert> frameAlerts = new();
@@ -63,7 +68,12 @@ public class OverlayWindow : Window, IDisposable
         IsOpen = true;
     }
 
-    public void Dispose() { }
+    public void Dispose()
+    {
+        axisFontHandle?.Dispose();
+        jupiterFontHandle?.Dispose();
+        trumpGothicFontHandle?.Dispose();
+    }
 
     // -----------------------------------------------------------------------
     // Window lifecycle hooks
@@ -145,6 +155,7 @@ public class OverlayWindow : Window, IDisposable
     public override void Draw()
     {
         var cfg = plugin.Configuration;
+        using var fontPush = PushConfiguredAlertFont(cfg.AlertFontPreset);
 
         // ------------------------------------------------------------------
         // Collect active alerts (thread-safe; expired entries are pruned)
@@ -230,7 +241,7 @@ public class OverlayWindow : Window, IDisposable
                                     drawList.AddText(screenPos + new Vector2(dx, dy), outlineU32, lines[l]);
                     }
 
-                    drawList.AddText(screenPos, colorU32, lines[l]);
+                    DrawTextWithThickness(drawList, screenPos, colorU32, lines[l], cfg.AlertFontThickness);
                 }
 
                 cursorY += textSize.Y + 4f;
@@ -262,6 +273,50 @@ public class OverlayWindow : Window, IDisposable
     // -----------------------------------------------------------------------
     // Helpers
     // -----------------------------------------------------------------------
+
+    public IDisposable? PushConfiguredAlertFont(AlertFontPreset preset)
+    {
+        var ui = Plugin.PluginInterface.UiBuilder;
+
+        return preset switch
+        {
+            AlertFontPreset.DalamudDefault => ui.DefaultFontHandle.Push(),
+            AlertFontPreset.DalamudMono => ui.MonoFontHandle.Push(),
+            AlertFontPreset.FfxivJupiter => GetOrCreateJupiterFontHandle().Push(),
+            AlertFontPreset.FfxivTrumpGothic => GetOrCreateTrumpGothicFontHandle().Push(),
+            _ => GetOrCreateAxisFontHandle().Push(),
+        };
+    }
+
+    public static void DrawTextWithThickness(ImDrawListPtr drawList, Vector2 screenPos, uint colorU32, string text, float thickness)
+    {
+        if (thickness <= 1.01f)
+        {
+            drawList.AddText(screenPos, colorU32, text);
+            return;
+        }
+
+        var radius = Math.Clamp((thickness - 1f) * 1.2f, 0f, 2.5f);
+        drawList.AddText(screenPos + new Vector2(-radius, 0f), colorU32, text);
+        drawList.AddText(screenPos + new Vector2(radius, 0f), colorU32, text);
+        drawList.AddText(screenPos + new Vector2(0f, -radius), colorU32, text);
+        drawList.AddText(screenPos + new Vector2(0f, radius), colorU32, text);
+        drawList.AddText(screenPos + new Vector2(-radius, -radius), colorU32, text);
+        drawList.AddText(screenPos + new Vector2(-radius, radius), colorU32, text);
+        drawList.AddText(screenPos + new Vector2(radius, -radius), colorU32, text);
+        drawList.AddText(screenPos + new Vector2(radius, radius), colorU32, text);
+
+        drawList.AddText(screenPos, colorU32, text);
+    }
+
+    private IFontHandle GetOrCreateAxisFontHandle()
+        => axisFontHandle ??= Plugin.PluginInterface.UiBuilder.FontAtlas.NewGameFontHandle(new GameFontStyle(GameFontFamily.Axis, 14f));
+
+    private IFontHandle GetOrCreateJupiterFontHandle()
+        => jupiterFontHandle ??= Plugin.PluginInterface.UiBuilder.FontAtlas.NewGameFontHandle(new GameFontStyle(GameFontFamily.Jupiter, 16f));
+
+    private IFontHandle GetOrCreateTrumpGothicFontHandle()
+        => trumpGothicFontHandle ??= Plugin.PluginInterface.UiBuilder.FontAtlas.NewGameFontHandle(new GameFontStyle(GameFontFamily.TrumpGothic, 23f));
 
     /// <summary>
     /// Builds the display string for an alert, handling countdown and cast bar display.

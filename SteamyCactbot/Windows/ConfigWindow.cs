@@ -15,6 +15,15 @@ namespace CactbotUI.Windows;
 /// </summary>
 public class ConfigWindow : Window, IDisposable
 {
+    private static readonly string[] FontPresetLabels =
+    {
+        "FFXIV Axis (default)",
+        "Dalamud Default",
+        "Dalamud Monospace",
+        "FFXIV Jupiter",
+        "FFXIV Trump Gothic",
+    };
+
     private readonly Configuration    configuration;
     private readonly WebSocketService wsService;
     private readonly OverlayWindow    overlayWindow;
@@ -157,6 +166,24 @@ public class ConfigWindow : Window, IDisposable
             configuration.Save();
         }
 
+        // Font family selection
+        var fontPreset = (int)configuration.AlertFontPreset;
+        ImGui.SetNextItemWidth(240f);
+        if (ImGui.Combo("Alert font", ref fontPreset, FontPresetLabels, FontPresetLabels.Length))
+        {
+            configuration.AlertFontPreset = (AlertFontPreset)fontPreset;
+            configuration.Save();
+        }
+
+        // Text thickness slider
+        var fontThickness = configuration.AlertFontThickness;
+        ImGui.SetNextItemWidth(120f);
+        if (ImGui.SliderFloat("Font thickness", ref fontThickness, 1.0f, 3.0f, "%.1fx"))
+        {
+            configuration.AlertFontThickness = fontThickness;
+            configuration.Save();
+        }
+
         // ------------------------------------------------------------------
         // Text colour override
         // ------------------------------------------------------------------
@@ -250,8 +277,9 @@ public class ConfigWindow : Window, IDisposable
 
         var sampleText = "Sample Alert: Stack for raidwide!";
         var previewWrapWidth = Math.Max(1f, ImGui.GetWindowWidth() - 24f);
-        var previewLineHeight = ImGui.GetFontSize() * configuration.AlertFontScale;
 
+        using var previewFontPush = overlayWindow.PushConfiguredAlertFont(configuration.AlertFontPreset);
+        var previewLineHeight = ImGui.GetFontSize() * configuration.AlertFontScale;
         ImGui.SetWindowFontScale(configuration.AlertFontScale);
 
         var previewLines = OverlayWindow.WrapTextToWidth(sampleText, previewWrapWidth, previewLineHeight);
@@ -282,7 +310,7 @@ public class ConfigWindow : Window, IDisposable
                             previewDrawList.AddText(screenPt + new Vector2(dx, dy), outlineU32, previewLines[l]);
             }
 
-            previewDrawList.AddText(screenPt, previewColorU32, previewLines[l]);
+            OverlayWindow.DrawTextWithThickness(previewDrawList, screenPt, previewColorU32, previewLines[l], configuration.AlertFontThickness);
         }
 
         ImGui.SetWindowFontScale(1.0f);

@@ -4,6 +4,15 @@ using System.Numerics;
 
 namespace CactbotUI;
 
+public enum AlertFontPreset
+{
+    FfxivAxis = 0,
+    DalamudDefault = 1,
+    DalamudMono = 2,
+    FfxivJupiter = 3,
+    FfxivTrumpGothic = 4,
+}
+
 [Serializable]
 public class Configuration : IPluginConfiguration
 {
@@ -57,6 +66,18 @@ public class Configuration : IPluginConfiguration
     /// 1.0 = default size, 1.5 = 50 % larger, etc.
     /// </summary>
     public float AlertFontScale { get; set; } = 1.2f;
+
+    /// <summary>
+    /// Font family preset used for alert text.
+    /// Defaults to the game's Axis font style.
+    /// </summary>
+    public AlertFontPreset AlertFontPreset { get; set; } = AlertFontPreset.FfxivAxis;
+
+    /// <summary>
+    /// Visual text thickness multiplier.
+    /// 1.0 = normal weight, higher values draw progressively bolder text.
+    /// </summary>
+    public float AlertFontThickness { get; set; } = 1.0f;
 
     // -----------------------------------------------------------------------
     // Text appearance
