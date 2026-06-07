@@ -26,12 +26,14 @@ public sealed class BrowserService : IDisposable
     /// <summary>Fires whenever the browser state changes.</summary>
     public event Action<BrowserState>? StateChanged;
 
+    private BrowserState state = BrowserState.Idle;
+
     public BrowserState State
     {
-        get => field;
+        get => state;
         private set
         {
-            field = value;
+            state = value;
             StateChanged?.Invoke(value);
         }
     }
