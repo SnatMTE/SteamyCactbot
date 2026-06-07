@@ -243,13 +243,10 @@ public sealed class WebSocketService : IDisposable
 
                 case "ChangeZone":
                 case "onZoneChangedEvent":
-                    var prevZone = CurrentZone;
                     if (root.TryGetProperty("zoneName", out var zoneEl) && zoneEl.ValueKind == JsonValueKind.String)
                         CurrentZone = zoneEl.GetString() ?? string.Empty;
                     else if (root.TryGetProperty("zoneID", out var zoneIdEl))
                         CurrentZone = $"Zone {zoneIdEl}";
-                    if (!string.IsNullOrWhiteSpace(CurrentZone) && CurrentZone != prevZone)
-                        EnqueueAlert($"Zone: {CurrentZone}", AlertType.Info, 4f);
                     log.Information($"[CactbotPlugin] Zone changed: {CurrentZone}");
                     break;
 
@@ -424,6 +421,17 @@ public sealed class WebSocketService : IDisposable
             chatQueue.Enqueue(alert.Text);
 
         log.Debug($"[CactbotPlugin] [{alert.Type}] \"{alert.Text}\" ({alert.Duration:F1}s)");
+    }
+
+    /// <summary>
+    /// Enqueues a message to be printed in the chat announcement channel.
+    /// The message is drained on the game main thread via <c>IFramework.Update</c>.
+    /// Thread-safe.
+    /// </summary>
+    public void EnqueueChatMessage(string message)
+    {
+        if (!string.IsNullOrWhiteSpace(message))
+            chatQueue.Enqueue(message);
     }
 
     /// <summary>

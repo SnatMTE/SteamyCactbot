@@ -70,6 +70,13 @@ public sealed class Plugin : IDalamudPlugin
         // Launch headless browser pointing at the local proxied Cactbot overlay
         browserService = new BrowserService(Log, pluginDir, relayService.OverlayUrl);
 
+        // Installation announcements — show progress in the chat announcement channel.
+        // 1. Browser download starting
+        wsService.EnqueueChatMessage("Installing: Browser...");
+
+        // 2. Subscribe to browser state changes for subsequent steps
+        browserService.StateChanged += OnBrowserStateChanged;
+
         // Create windows - OverlayWindow must exist before ConfigWindow
         // so ConfigWindow can hold a reference to it
         OverlayWindow = new OverlayWindow(this, wsService);
@@ -97,6 +104,23 @@ public sealed class Plugin : IDalamudPlugin
     }
 
     // -----------------------------------------------------------------------
+    // Browser installation announcements
+    // -----------------------------------------------------------------------
+
+    private void OnBrowserStateChanged(BrowserService.BrowserState state)
+    {
+        switch (state)
+        {
+            case BrowserService.BrowserState.Launching:
+                wsService.EnqueueChatMessage("Installing: Puppet...");
+                break;
+            case BrowserService.BrowserState.Running:
+                wsService.EnqueueChatMessage("Plugin Loaded!");
+                break;
+        }
+    }
+
+    // -----------------------------------------------------------------------
     // Disposal - unregister everything to prevent leaks on reload
     // -----------------------------------------------------------------------
     public void Dispose()
@@ -105,6 +129,9 @@ public sealed class Plugin : IDalamudPlugin
         PluginInterface.UiBuilder.OpenConfigUi -= ToggleConfigUi;
         PluginInterface.UiBuilder.OpenMainUi   -= ToggleMainUi;
         Framework.Update                       -= OnFrameworkUpdate;
+
+        // Unsubscribe from browser state changes
+        browserService.StateChanged -= OnBrowserStateChanged;
 
         WindowSystem.RemoveAllWindows();
         ConfigWindow.Dispose();

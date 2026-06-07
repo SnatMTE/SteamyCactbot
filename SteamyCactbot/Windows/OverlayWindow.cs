@@ -41,6 +41,11 @@ public class OverlayWindow : Window, IDisposable
     private IFontHandle? jupiterFontHandle;
     private IFontHandle? trumpGothicFontHandle;
 
+    // Tracks the last-seen font scale & preset so we can rebuild font handles
+    // when they change (the cached handles embed the scale at creation time).
+    private float lastFontScale;
+    private AlertFontPreset lastFontPreset;
+
     // Re-used every frame to avoid per-frame heap allocation
     private readonly List<CactbotAlert> frameAlerts = new();
 
@@ -83,6 +88,15 @@ public class OverlayWindow : Window, IDisposable
     {
         var cfg = plugin.Configuration;
         IsOpen = true;
+
+        // Rebuild font handles when the user changes font scale or preset
+        // in the config window, since the cached handles embed the scale.
+        if (MathF.Abs(cfg.AlertFontScale - lastFontScale) > 0.01f || cfg.AlertFontPreset != lastFontPreset)
+        {
+            InvalidateFontHandles();
+            lastFontScale = cfg.AlertFontScale;
+            lastFontPreset = cfg.AlertFontPreset;
+        }
 
         // Apply the saved screen position on the first frame after opening.
         // Combined with NoSavedSettings, ImGuiCond.Always fires on every new
@@ -276,6 +290,20 @@ public class OverlayWindow : Window, IDisposable
     // -----------------------------------------------------------------------
     // Helpers
     // -----------------------------------------------------------------------
+
+    /// <summary>
+    /// Disposes all cached font handles so they are rebuilt with the
+    /// current <see cref="Configuration.AlertFontScale"/> on the next frame.
+    /// </summary>
+    private void InvalidateFontHandles()
+    {
+        axisFontHandle?.Dispose();
+        axisFontHandle = null;
+        jupiterFontHandle?.Dispose();
+        jupiterFontHandle = null;
+        trumpGothicFontHandle?.Dispose();
+        trumpGothicFontHandle = null;
+    }
 
     public IDisposable? PushConfiguredAlertFont(AlertFontPreset preset, float fontScale)
     {

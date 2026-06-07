@@ -23,7 +23,18 @@ public sealed class BrowserService : IDisposable
     // -----------------------------------------------------------------------
     public enum BrowserState { Idle, Downloading, Launching, Running, Error }
 
-    public BrowserState State          { get; private set; } = BrowserState.Idle;
+    /// <summary>Fires whenever the browser state changes.</summary>
+    public event Action<BrowserState>? StateChanged;
+
+    public BrowserState State
+    {
+        get => field;
+        private set
+        {
+            field = value;
+            StateChanged?.Invoke(value);
+        }
+    }
     public int          DownloadPct    { get; private set; }   // 0-100 while downloading (not available in this version)
     public bool         IsRunning      => State == BrowserState.Running;
 
