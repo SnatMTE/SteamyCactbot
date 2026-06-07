@@ -155,7 +155,7 @@ public class OverlayWindow : Window, IDisposable
     public override void Draw()
     {
         var cfg = plugin.Configuration;
-        using var fontPush = PushConfiguredAlertFont(cfg.AlertFontPreset);
+        using var fontPush = PushConfiguredAlertFont(cfg.AlertFontPreset, cfg.AlertFontScale);
         var showPreview = plugin.IsConfigUiOpen;
 
         // ------------------------------------------------------------------
@@ -197,9 +197,6 @@ public class OverlayWindow : Window, IDisposable
             // Each alert's text wraps to fit the box width, with every line
             // individually centered horizontally and the block centered
             // vertically within the box.
-            // --------------------------------------------------------------
-            ImGui.SetWindowFontScale(cfg.AlertFontScale);
-
             // Measure total height of all alert text blocks
             var totalHeight = 0f;
             var textSizes = new Vector2[frameAlerts.Count];
@@ -254,8 +251,6 @@ public class OverlayWindow : Window, IDisposable
 
                 cursorY += textSize.Y + 4f;
             }
-
-            ImGui.SetWindowFontScale(1.0f);
         }
 
         // ------------------------------------------------------------------
@@ -282,28 +277,33 @@ public class OverlayWindow : Window, IDisposable
     // Helpers
     // -----------------------------------------------------------------------
 
-    public IDisposable? PushConfiguredAlertFont(AlertFontPreset preset)
+    public IDisposable? PushConfiguredAlertFont(AlertFontPreset preset, float fontScale)
     {
         var ui = Plugin.PluginInterface.UiBuilder;
 
+        // Base font sizes chosen to produce a crisp 1:1 render at typical display sizes.
+        // fontScale then selects a larger or smaller variant so bitmap fonts stay pixel-perfect.
         return preset switch
         {
             AlertFontPreset.DalamudDefault => ui.DefaultFontHandle.Push(),
             AlertFontPreset.DalamudMono => ui.MonoFontHandle.Push(),
-            AlertFontPreset.FfxivJupiter => GetOrCreateJupiterFontHandle().Push(),
-            AlertFontPreset.FfxivTrumpGothic => GetOrCreateTrumpGothicFontHandle().Push(),
-            _ => GetOrCreateAxisFontHandle().Push(),
+            AlertFontPreset.FfxivJupiter => GetOrCreateJupiterFontHandle(fontScale).Push(),
+            AlertFontPreset.FfxivTrumpGothic => GetOrCreateTrumpGothicFontHandle(fontScale).Push(),
+            _ => GetOrCreateAxisFontHandle(fontScale).Push(),
         };
     }
 
-    private IFontHandle GetOrCreateAxisFontHandle()
-        => axisFontHandle ??= Plugin.PluginInterface.UiBuilder.FontAtlas.NewGameFontHandle(new GameFontStyle(GameFontFamily.Axis, 14f));
+    private IFontHandle GetOrCreateAxisFontHandle(float scale)
+        => axisFontHandle ??= Plugin.PluginInterface.UiBuilder.FontAtlas.NewGameFontHandle(
+            new GameFontStyle(GameFontFamily.Axis, 14f * scale));
 
-    private IFontHandle GetOrCreateJupiterFontHandle()
-        => jupiterFontHandle ??= Plugin.PluginInterface.UiBuilder.FontAtlas.NewGameFontHandle(new GameFontStyle(GameFontFamily.Jupiter, 16f));
+    private IFontHandle GetOrCreateJupiterFontHandle(float scale)
+        => jupiterFontHandle ??= Plugin.PluginInterface.UiBuilder.FontAtlas.NewGameFontHandle(
+            new GameFontStyle(GameFontFamily.Jupiter, 16f * scale));
 
-    private IFontHandle GetOrCreateTrumpGothicFontHandle()
-        => trumpGothicFontHandle ??= Plugin.PluginInterface.UiBuilder.FontAtlas.NewGameFontHandle(new GameFontStyle(GameFontFamily.TrumpGothic, 23f));
+    private IFontHandle GetOrCreateTrumpGothicFontHandle(float scale)
+        => trumpGothicFontHandle ??= Plugin.PluginInterface.UiBuilder.FontAtlas.NewGameFontHandle(
+            new GameFontStyle(GameFontFamily.TrumpGothic, 23f * scale));
 
     /// <summary>
     /// Builds the display string for an alert, handling countdown and cast bar display.

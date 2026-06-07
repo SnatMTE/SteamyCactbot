@@ -406,6 +406,10 @@ public sealed class WebSocketService : IDisposable
             return;
 
         // Common raidboss shape: { type: "alarm"|"alert"|"info", text: "...", duration?: n }
+        // Also handles: { alarmText: "...", alertText: "...", infoText: "..." }
+        // Only process ONE alert per message to avoid duplicates.
+
+        // Try the standard "text" field first
         if (TryGetString(payload, "text", out var baseText) && !string.IsNullOrWhiteSpace(baseText))
         {
             var rawType = TryGetString(payload, "type", out var typeText) ? typeText : "info";
@@ -415,9 +419,10 @@ public sealed class WebSocketService : IDisposable
                 : DefaultDuration(alertType);
 
             EnqueueAlert(baseText.Trim(), alertType, duration);
+            return; // Done - don't also process the named fields
         }
 
-        // Alternative shape used by some cactbot flows.
+        // Fall back to the named text fields if no "text" field present
         AddNamedAlert(payload, "alarmText", AlertType.Alarm, 5f);
         AddNamedAlert(payload, "alertText", AlertType.Alert, 4f);
         AddNamedAlert(payload, "infoText", AlertType.Info, 3f);
