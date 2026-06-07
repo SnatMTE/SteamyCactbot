@@ -32,7 +32,6 @@ public sealed class WebSocketService : IDisposable
 
     private const string WsUrl           = "ws://127.0.0.1:10501/ws";
     private const int    MaxStoredAlerts  = 20;
-    private const int    MaxDebugMessages = 20;
     private const int    ReconnectDelayMs = 5_000;
 
     // Events confirmed to be registered in IINACT OverlayPlugin 0.19.x.
@@ -58,9 +57,7 @@ public sealed class WebSocketService : IDisposable
     private readonly IPluginLog          log;
     private readonly Configuration       config;
     private readonly object              alertLock   = new();
-    private readonly object              debugLock   = new();
     private readonly List<CactbotAlert>  alerts      = new();
-    private readonly List<string>        debugMessages = new();
     private readonly CancellationTokenSource cts     = new();
     private readonly ConcurrentQueue<string> chatQueue = new();
     private readonly System.Collections.Generic.HashSet<string> seenTypes = new();
@@ -81,16 +78,6 @@ public sealed class WebSocketService : IDisposable
 
     /// <summary>Total number of <c>LogLine</c> WebSocket events received since connecting. Use this to verify data is flowing.</summary>
     public int LogLineCount => logLineCount;
-
-    /// <summary>
-    /// Returns a snapshot of the last <see cref="MaxDebugMessages"/> raw JSON messages
-    /// received from the WebSocket, newest first. Use this to diagnose unexpected payload shapes.
-    /// </summary>
-    public List<string> GetDebugMessages()
-    {
-        lock (debugLock)
-            return new List<string>(debugMessages);
-    }
 
     // -----------------------------------------------------------------------
     // Constructor / startup
@@ -217,7 +204,6 @@ public sealed class WebSocketService : IDisposable
             while (!result.EndOfMessage);
 
             var raw = messageBuilder.ToString();
-            StoreDebugMessage(raw);
             HandleMessage(raw);
         }
     }
@@ -230,18 +216,6 @@ public sealed class WebSocketService : IDisposable
     /// Top-level dispatcher: deserialises the JSON envelope and routes to the
     /// appropriate handler based on the <c>type</c> field.
     /// </summary>
-    private void StoreDebugMessage(string raw)
-    {
-        // Truncate very long messages so they don't swamp the UI
-        var display = raw.Length > 300 ? raw[..300] + "…" : raw;
-        lock (debugLock)
-        {
-            debugMessages.Insert(0, display);
-            if (debugMessages.Count > MaxDebugMessages)
-                debugMessages.RemoveAt(debugMessages.Count - 1);
-        }
-    }
-
     private void HandleMessage(string json)
     {
         try

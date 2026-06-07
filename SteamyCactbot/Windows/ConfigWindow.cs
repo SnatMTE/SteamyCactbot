@@ -289,41 +289,6 @@ public class ConfigWindow : Window, IDisposable
             ImGui.SetTooltip("Prints each alert to your local chat log using the Announcement channel.");
 
         ImGui.Separator();
-
-        // ------------------------------------------------------------------
-        // Raw WebSocket debug panel
-        // Opens /xllog in Dalamud if you want persistent output.
-        // All message types are also logged there at [DBG] level.
-        // ------------------------------------------------------------------
-        ImGui.TextColored(new Vector4(0.85f, 0.85f, 0.10f, 1f), "Raw WebSocket messages (newest first)");
-        ImGui.TextColored(new Vector4(0.65f, 0.65f, 0.65f, 1f), "Check /xllog for full details. Enable debug logging in /xlsettings.");
-
-        var logLineCount = wsService.LogLineCount;
-        if (logLineCount == 0)
-            ImGui.TextColored(new Vector4(1.00f, 0.55f, 0.20f, 1f), "⚠ No LogLine events received - verify OverlayPlugin/IINACT is running and network parsing is enabled.");
-        else
-            ImGui.TextColored(new Vector4(0.20f, 1.00f, 0.20f, 1f), $"✔ {logLineCount} LogLine events received");
-
-        ImGui.Spacing();
-
-        var msgs = wsService.GetDebugMessages();
-        if (msgs.Count == 0)
-        {
-            ImGui.TextColored(new Vector4(0.55f, 0.55f, 0.55f, 1f), "(nothing received yet)");
-        }
-        else
-        {
-            using var child = Dalamud.Interface.Utility.Raii.ImRaii.Child(
-                "##DebugMsgs", new Vector2(-1, 200), true);
-            if (child.Success)
-            {
-                foreach (var m in msgs)
-                {
-                    ImGui.TextUnformatted(m);
-                    ImGui.Separator();
-                }
-            }
-        }
     }
 }
 
