@@ -84,7 +84,7 @@ public class TimelineEntry
     public double TimeRemaining { get; set; }
 
     /// <summary>Absolute UTC time when this entry was received.</summary>
-    public DateTime ReceivedAt { get; init; } = DateTime.UtcNow;
+    public DateTime ReceivedAt { get; set; } = DateTime.UtcNow;
 
     /// <summary>True when the entry's time has passed (for pruning).</summary>
     public bool IsExpired => TimeRemaining <= -5;

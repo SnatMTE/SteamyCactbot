@@ -76,7 +76,7 @@ public class TimelineOverlayWindow : Window, IDisposable
     public override void PreDraw()
     {
         var cfg = plugin.Configuration;
-        IsOpen = true;
+        IsOpen = cfg.EnableTimelineOverlay;
 
         // Rebuild font handles when settings change
         if (MathF.Abs(cfg.TimelineFontScale - lastFontScale) > 0.01f || cfg.TimelineFontPreset != lastFontPreset)

@@ -3,6 +3,7 @@ using Dalamud.IoC;
 using Dalamud.Plugin;
 using Dalamud.Interface.Windowing;
 using Dalamud.Plugin.Services;
+using Dalamud.Game.Gui.Dtr;
 using CactBridge.Services;
 using System.Diagnostics;
 using CactBridge.Windows;
@@ -56,8 +57,8 @@ public sealed class Plugin : IDalamudPlugin
     private          DamageMeterOverlayWindow  DamageMeterOverlayWindow { get; init; }
 
     // DTR (server info bar) entries
-    private DtrBarEntry? partyDpsEntry;
-    private DtrBarEntry? personalDpsEntry;
+    private IDtrBarEntry? partyDpsEntry;
+    private IDtrBarEntry? personalDpsEntry;
     private string?      localPlayerName;
 
     // -----------------------------------------------------------------------
@@ -103,22 +104,16 @@ public sealed class Plugin : IDalamudPlugin
         DamageMeterOverlayWindow.IsOpen = true;
 
         // Cache local player name for personal DPS lookup
-        localPlayerName = ClientState.LocalPlayer?.Name?.ToString();
+        localPlayerName = PlayerState.CharacterName;
 
         // Re-cache player name on login (character switch)
         ClientState.Login += OnLogin;
 
         // Register DTR (server info bar) entries
-        partyDpsEntry = DtrBar.Get("CactBridge-PartyDPS");
-        partyDpsEntry.Title = "DPS";
-        partyDpsEntry.Text = "0";
-        partyDpsEntry.Priority = 0;   // leftmost position
+        partyDpsEntry = DtrBar.Get("CactBridge-PartyDPS", "0");
         partyDpsEntry.Shown = false;
 
-        personalDpsEntry = DtrBar.Get("CactBridge-PersonalDPS");
-        personalDpsEntry.Title = "PDPS";
-        personalDpsEntry.Text = "0";
-        personalDpsEntry.Priority = 1; // just right of party DPS
+        personalDpsEntry = DtrBar.Get("CactBridge-PersonalDPS", "0");
         personalDpsEntry.Shown = false;
 
         // Register slash command
@@ -178,12 +173,12 @@ public sealed class Plugin : IDalamudPlugin
         // Remove DTR entries from the server info bar
         if (partyDpsEntry != null)
         {
-            DtrBar.Remove(partyDpsEntry);
+            DtrBar.Remove("CactBridge-PartyDPS");
             partyDpsEntry = null;
         }
         if (personalDpsEntry != null)
         {
-            DtrBar.Remove(personalDpsEntry);
+            DtrBar.Remove("CactBridge-PersonalDPS");
             personalDpsEntry = null;
         }
 
@@ -226,7 +221,7 @@ public sealed class Plugin : IDalamudPlugin
     // -----------------------------------------------------------------------
     private void OnLogin()
     {
-        localPlayerName = ClientState.LocalPlayer?.Name?.ToString();
+        localPlayerName = PlayerState.CharacterName;
     }
 
     // -----------------------------------------------------------------------

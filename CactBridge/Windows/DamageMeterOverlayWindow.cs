@@ -86,7 +86,7 @@ public class DamageMeterOverlayWindow : Window, IDisposable
     public override void PreDraw()
     {
         var cfg = plugin.Configuration;
-        IsOpen = true;
+        IsOpen = cfg.EnableDpsMeter;
 
         if (MathF.Abs(cfg.DpsFontScale - lastFontScale) > 0.01f || cfg.DpsFontPreset != lastFontPreset)
         {
@@ -155,7 +155,6 @@ public class DamageMeterOverlayWindow : Window, IDisposable
         var lineHeight = ImGui.GetFontSize() * cfg.DpsFontScale;
 
         // Calculate column widths based on visible columns
-        var numCols = 2; // position + name + job
         colDpsWidth = ImGui.CalcTextSize("99999 DPS").X + ColPadding;
         colDamageWidth = ImGui.CalcTextSize("99.99M").X + ColPadding;
         colHealWidth = ImGui.CalcTextSize("99.99M HPS").X + ColPadding;
@@ -167,7 +166,7 @@ public class DamageMeterOverlayWindow : Window, IDisposable
 
         if (cfg.DpsShowHeader && encounter != null)
         {
-            drawList.AddText(leftX, cursorY, ImGui.ColorConvertFloat4ToU32(ColorHeader),
+            drawList.AddText(new Vector2(leftX, cursorY), ImGui.ColorConvertFloat4ToU32(ColorHeader),
                 $"{encounter.Title}  |  {encounter.DurationStr}  |  {encounter.DamageStr}  |  {encounter.DPS:F0} DPS");
             cursorY += lineHeight + 2f;
         }
@@ -176,32 +175,32 @@ public class DamageMeterOverlayWindow : Window, IDisposable
         var headerY = cursorY;
 
         var xPos = leftX;
-        drawList.AddText(xPos, headerY, ImGui.ColorConvertFloat4ToU32(ColorPosition), "#");
+        drawList.AddText(new Vector2(xPos, headerY), ImGui.ColorConvertFloat4ToU32(ColorPosition), "#");
         xPos += 24f;
-        drawList.AddText(xPos, headerY, ImGui.ColorConvertFloat4ToU32(ColorHeader), "Job");
+        drawList.AddText(new Vector2(xPos, headerY), ImGui.ColorConvertFloat4ToU32(ColorHeader), "Job");
         xPos += 32f;
-        drawList.AddText(xPos, headerY, ImGui.ColorConvertFloat4ToU32(ColorHeader), "Name");
+        drawList.AddText(new Vector2(xPos, headerY), ImGui.ColorConvertFloat4ToU32(ColorHeader), "Name");
         xPos += 120f;
-        drawList.AddText(xPos, headerY, ImGui.ColorConvertFloat4ToU32(ColorDps), "DPS");
+        drawList.AddText(new Vector2(xPos, headerY), ImGui.ColorConvertFloat4ToU32(ColorDps), "DPS");
         xPos += colDpsWidth;
-        drawList.AddText(xPos, headerY, ImGui.ColorConvertFloat4ToU32(ColorDamage), "Damage");
+        drawList.AddText(new Vector2(xPos, headerY), ImGui.ColorConvertFloat4ToU32(ColorDamage), "Damage");
         xPos += colDamageWidth;
 
         if (cfg.DpsShowHealing)
         {
-            drawList.AddText(xPos, headerY, ImGui.ColorConvertFloat4ToU32(ColorHealing), "Healing");
+            drawList.AddText(new Vector2(xPos, headerY), ImGui.ColorConvertFloat4ToU32(ColorHealing), "Healing");
             xPos += colHealWidth;
         }
 
         if (cfg.DpsShowDeaths)
         {
-            drawList.AddText(xPos, headerY, ImGui.ColorConvertFloat4ToU32(ColorDeaths), "Deaths");
+            drawList.AddText(new Vector2(xPos, headerY), ImGui.ColorConvertFloat4ToU32(ColorDeaths), "Deaths");
         }
 
         cursorY += lineHeight + 2f;
 
         // Separator line
-        drawList.AddLine(leftX, cursorY, boxPos.X + boxSize.X - 4f, cursorY,
+        drawList.AddLine(new Vector2(leftX, cursorY), new Vector2(boxPos.X + boxSize.X - 4f, cursorY),
             ImGui.ColorConvertFloat4ToU32(new Vector4(0.40f, 0.40f, 0.40f, 0.60f)));
         cursorY += 2f;
 
@@ -216,43 +215,43 @@ public class DamageMeterOverlayWindow : Window, IDisposable
             // Alternating row background
             if (i % 2 == 1)
             {
-                drawList.AddRectFilled(leftX, cursorY, boxPos.X + boxSize.X - 4f, cursorY + lineHeight,
+                drawList.AddRectFilled(new Vector2(leftX, cursorY), new Vector2(boxPos.X + boxSize.X - 4f, cursorY + lineHeight),
                     ImGui.ColorConvertFloat4ToU32(altBg));
             }
 
             xPos = leftX;
 
             // Position #
-            drawList.AddText(xPos, cursorY, ImGui.ColorConvertFloat4ToU32(ColorPosition), $"{i + 1}");
+            drawList.AddText(new Vector2(xPos, cursorY), ImGui.ColorConvertFloat4ToU32(ColorPosition), $"{i + 1}");
             xPos += 24f;
 
             // Job (coloured)
-            drawList.AddText(xPos, cursorY, ImGui.ColorConvertFloat4ToU32(ColorJob), c.Job);
+            drawList.AddText(new Vector2(xPos, cursorY), ImGui.ColorConvertFloat4ToU32(ColorJob), c.Job);
             xPos += 32f;
 
             // Name
-            drawList.AddText(xPos, cursorY, ImGui.ColorConvertFloat4ToU32(ColorDamage), c.Name);
+            drawList.AddText(new Vector2(xPos, cursorY), ImGui.ColorConvertFloat4ToU32(ColorDamage), c.Name);
             xPos += 120f;
 
             // DPS
-            drawList.AddText(xPos, cursorY, ImGui.ColorConvertFloat4ToU32(ColorDps), c.DpsStr);
+            drawList.AddText(new Vector2(xPos, cursorY), ImGui.ColorConvertFloat4ToU32(ColorDps), c.DpsStr);
             xPos += colDpsWidth;
 
             // Damage
-            drawList.AddText(xPos, cursorY, ImGui.ColorConvertFloat4ToU32(ColorDamage), c.DamageStr);
+            drawList.AddText(new Vector2(xPos, cursorY), ImGui.ColorConvertFloat4ToU32(ColorDamage), c.DamageStr);
             xPos += colDamageWidth;
 
             // Healing
             if (cfg.DpsShowHealing)
             {
-                drawList.AddText(xPos, cursorY, ImGui.ColorConvertFloat4ToU32(ColorHealing), c.HealingStr);
+                drawList.AddText(new Vector2(xPos, cursorY), ImGui.ColorConvertFloat4ToU32(ColorHealing), c.HealingStr);
                 xPos += colHealWidth;
             }
 
             // Deaths
             if (cfg.DpsShowDeaths)
             {
-                drawList.AddText(xPos, cursorY, ImGui.ColorConvertFloat4ToU32(ColorDeaths), c.Deaths > 0 ? $"{c.Deaths}" : "-");
+                drawList.AddText(new Vector2(xPos, cursorY), ImGui.ColorConvertFloat4ToU32(ColorDeaths), c.Deaths > 0 ? $"{c.Deaths}" : "-");
             }
 
             cursorY += lineHeight;

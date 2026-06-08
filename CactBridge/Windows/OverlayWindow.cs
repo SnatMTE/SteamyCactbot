@@ -87,7 +87,7 @@ public class OverlayWindow : Window, IDisposable
     public override void PreDraw()
     {
         var cfg = plugin.Configuration;
-        IsOpen = true;
+        IsOpen = cfg.EnableCactbotOverlay;
 
         // Rebuild font handles when the user changes font scale or preset
         // in the config window, since the cached handles embed the scale.

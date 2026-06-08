@@ -26,6 +26,19 @@ public class Configuration : IPluginConfiguration
     public bool IsConfigWindowMovable { get; set; } = true;
 
     // -----------------------------------------------------------------------
+    // Overlay enable/disable toggles
+    // -----------------------------------------------------------------------
+
+    /// <summary>Whether the raidboss alert (Cactbot) overlay is enabled.</summary>
+    public bool EnableCactbotOverlay { get; set; } = true;
+
+    /// <summary>Whether the timeline overlay is enabled.</summary>
+    public bool EnableTimelineOverlay { get; set; } = true;
+
+    /// <summary>Whether the DPS meter overlay is enabled.</summary>
+    public bool EnableDpsMeter { get; set; } = true;
+
+    // -----------------------------------------------------------------------
     // Overlay visibility and position
     // -----------------------------------------------------------------------
 

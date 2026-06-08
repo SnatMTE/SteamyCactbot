@@ -93,6 +93,18 @@ public class ConfigWindow : Window, IDisposable
             if (ImGui.BeginTabItem("Callout"))
             {
                 // ----------------------------------------------------------
+                // Enable / disable the overlay
+                // ----------------------------------------------------------
+                var enableOverlay = configuration.EnableCactbotOverlay;
+                if (ImGui.Checkbox("Enable Cactbot overlay", ref enableOverlay))
+                {
+                    configuration.EnableCactbotOverlay = enableOverlay;
+                    configuration.Save();
+                }
+                ImGui.Spacing();
+                ImGui.Separator();
+
+                // ----------------------------------------------------------
                 // Background browser status
                 // ----------------------------------------------------------
                 ImGui.TextColored(new Vector4(1.00f, 0.85f, 0.10f, 1f), "Background Cactbot Browser");
@@ -315,6 +327,18 @@ public class ConfigWindow : Window, IDisposable
             if (ImGui.BeginTabItem("Timeline"))
             {
                 // ----------------------------------------------------------
+                // Enable / disable the overlay
+                // ----------------------------------------------------------
+                var enableTimeline = configuration.EnableTimelineOverlay;
+                if (ImGui.Checkbox("Enable Timeline overlay", ref enableTimeline))
+                {
+                    configuration.EnableTimelineOverlay = enableTimeline;
+                    configuration.Save();
+                }
+                ImGui.Spacing();
+                ImGui.Separator();
+
+                // ----------------------------------------------------------
                 // Background browser status (timeline page)
                 // ----------------------------------------------------------
                 ImGui.TextColored(new Vector4(1.00f, 0.85f, 0.10f, 1f), "Background Cactbot Browser (Timeline)");
@@ -496,7 +520,6 @@ public class ConfigWindow : Window, IDisposable
                     configuration.TimelineHeight = Math.Clamp(tlBoxH, 50f, 1000f);
                     configuration.Save();
                 }
-
                 ImGui.Spacing();
                 ImGui.Separator();
                 ImGui.EndTabItem();
@@ -507,6 +530,18 @@ public class ConfigWindow : Window, IDisposable
             // ==============================================================
             if (ImGui.BeginTabItem("Damage Meter"))
             {
+                // ----------------------------------------------------------
+                // Enable / disable the overlay
+                // ----------------------------------------------------------
+                var enableDps = configuration.EnableDpsMeter;
+                if (ImGui.Checkbox("Enable Damage Meter overlay", ref enableDps))
+                {
+                    configuration.EnableDpsMeter = enableDps;
+                    configuration.Save();
+                }
+                ImGui.Spacing();
+                ImGui.Separator();
+
                 // ----------------------------------------------------------
                 // Current encounter info (live)
                 // ----------------------------------------------------------
