@@ -914,30 +914,251 @@ public sealed class WebSocketService : IDisposable
     }
 
     /// <summary>
-    /// Deserializes an EncounterInfo with options tolerant of extra fields.
+    /// OverlayPlugin IINACT sends ALL numeric Encounter fields as STRINGS
+    /// (e.g. "duration":"06:07", "DPS":"0", "damage":"106").
+    /// This method manually parses the JsonElement, preferring the ALL-CAPS
+    /// numeric variants (DURATION, DAMAGE-k, etc.) over formatted strings.
     /// </summary>
     private static EncounterInfo? DeserializeCombatEncounter(string rawJson)
     {
-        var options = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
-        return JsonSerializer.Deserialize<EncounterInfo>(rawJson, options);
+        try
+        {
+            using var doc = JsonDocument.Parse(rawJson);
+            var root = doc.RootElement;
+            if (root.ValueKind != JsonValueKind.Object) return null;
+
+            var enc = new EncounterInfo();
+
+            // title — always a string
+            enc.Title = TryGetStringValue(root, "title") ?? "Encounter";
+
+            // Duration: prefer DURATION (uppercase, numeric seconds as string),
+            // fall back to parsing "duration" (may be "MM:SS" or number string).
+            enc.Duration = ParseDouble(root, "DURATION");
+            if (enc.Duration <= 0)
+                enc.Duration = ParseDuration(root, "duration");
+
+            // DPS: try the uppercase "DPS" first (OverlayPlugin sends as string "0"),
+            // then try "encdps" / "ENCDPS".
+            enc.DPS = ParseDouble(root, "DPS");
+            if (enc.DPS <= 0)
+            {
+                enc.DPS = ParseDouble(root, "encdps");
+                if (enc.DPS <= 0)
+                    enc.DPS = ParseDouble(root, "ENCDPS");
+            }
+
+            // Damage: prefer "damage" (lowercase, numeric string), then "Damage".
+            enc.Damage = ParseDouble(root, "damage");
+            if (enc.Damage <= 0)
+                enc.Damage = ParseDouble(root, "Damage");
+            if (enc.Damage <= 0)
+                enc.Damage = ParseDouble(root, "DAMAGE-k"); // OverlayPlugin kilo variant
+
+            enc.IsFighting = ParseBool(root, "isFighting") 
+                || ParseBool(root, "Infight") 
+                || ParseBool(root, "incombat");
+
+            return enc;
+        }
+        catch
+        {
+            return null;
+        }
     }
 
     /// <summary>
-    /// Deserializes a list of CombatantInfo with options tolerant of extra fields and casing.
+    /// Deserializes a list of CombatantInfo, manually parsing each to handle
+    /// OverlayPlugin's string-format numeric values.
     /// </summary>
     private static List<CombatantInfo>? DeserializeCombatants(string rawJson)
     {
-        var options = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
-        return JsonSerializer.Deserialize<List<CombatantInfo>>(rawJson, options);
+        try
+        {
+            using var doc = JsonDocument.Parse(rawJson);
+            var root = doc.RootElement;
+            if (root.ValueKind != JsonValueKind.Array) return null;
+
+            var list = new List<CombatantInfo>();
+            foreach (var item in root.EnumerateArray())
+            {
+                if (item.ValueKind != JsonValueKind.Object) continue;
+                var ci = ParseCombatant(item);
+                if (ci != null) list.Add(ci);
+            }
+            return list;
+        }
+        catch
+        {
+            return null;
+        }
     }
 
     /// <summary>
-    /// Deserializes a single CombatantInfo (for object-format combatant dictionaries).
+    /// Parses a single CombatantInfo from a JsonElement object.
     /// </summary>
     private static CombatantInfo? DeserializeCombatant(string rawJson)
     {
-        var options = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
-        return JsonSerializer.Deserialize<CombatantInfo>(rawJson, options);
+        try
+        {
+            using var doc = JsonDocument.Parse(rawJson);
+            var root = doc.RootElement;
+            if (root.ValueKind != JsonValueKind.Object) return null;
+            return ParseCombatant(root);
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    /// <summary>
+    /// Core combatant parser — handles all the field-name variants that
+    /// OverlayPlugin uses (Name, name, Job, job, ENCDPS, DPS, Damage, damage, etc.)
+    /// with numeric values as either numbers or strings.
+    /// </summary>
+    private static CombatantInfo? ParseCombatant(JsonElement obj)
+    {
+        if (obj.ValueKind != JsonValueKind.Object) return null;
+
+        var ci = new CombatantInfo();
+
+        ci.Name = TryGetStringValue(obj, "Name")
+            ?? TryGetStringValue(obj, "name")
+            ?? string.Empty;
+
+        ci.Job = TryGetStringValue(obj, "Job")
+            ?? TryGetStringValue(obj, "job")
+            ?? string.Empty;
+
+        // DPS: OverlayPlugin sends "ENCDPS" (uppercase) or "encdps".
+        var dps = ParseDouble(obj, "ENCDPS");
+        if (dps <= 0) dps = ParseDouble(obj, "encdps");
+        if (dps <= 0) dps = ParseDouble(obj, "DPS");
+        if (dps <= 0) dps = ParseDouble(obj, "dps");
+        ci.DPS = dps;
+
+        ci.Damage = ParseDouble(obj, "Damage");
+        if (ci.Damage <= 0) ci.Damage = ParseDouble(obj, "damage");
+
+        ci.DamagePercent = ParseDouble(obj, "DamagePercent");
+        if (ci.DamagePercent <= 0) ci.DamagePercent = ParseDouble(obj, "damagePercent");
+
+        ci.Healing = ParseDouble(obj, "Healing");
+        if (ci.Healing <= 0) ci.Healing = ParseDouble(obj, "healing");
+
+        ci.HealingPercent = ParseDouble(obj, "HealingPercent");
+        if (ci.HealingPercent <= 0) ci.HealingPercent = ParseDouble(obj, "healingPercent");
+
+        ci.HPS = ParseDouble(obj, "HPS");
+        if (ci.HPS <= 0) ci.HPS = ParseDouble(obj, "hps");
+        if (ci.HPS <= 0) ci.HPS = ParseDouble(obj, "ENCHPS");
+        if (ci.HPS <= 0) ci.HPS = ParseDouble(obj, "enchps");
+
+        ci.Deaths = ParseInt(obj, "Deaths");
+        if (ci.Deaths <= 0) ci.Deaths = ParseInt(obj, "deaths");
+
+        return ci;
+    }
+
+    // -------------------------------------------------------------------
+    // Low-level JsonElement helpers for string-tolerant number parsing
+    // -------------------------------------------------------------------
+
+    /// <summary>Parse a double from a JsonElement, handling Number and String values.</summary>
+    private static double ParseDouble(JsonElement parent, string propertyName)
+    {
+        if (!parent.TryGetProperty(propertyName, out var el))
+            return 0;
+        return ReadDouble(el);
+    }
+
+    private static double ReadDouble(JsonElement el)
+    {
+        switch (el.ValueKind)
+        {
+            case JsonValueKind.Number:
+                return el.TryGetDouble(out var d) ? d : 0;
+            case JsonValueKind.String:
+            {
+                var s = el.GetString();
+                if (string.IsNullOrWhiteSpace(s)) return 0;
+                if (double.TryParse(s,
+                        System.Globalization.NumberStyles.Float | System.Globalization.NumberStyles.AllowThousands,
+                        System.Globalization.CultureInfo.InvariantCulture, out var v))
+                    return v;
+                return 0;
+            }
+            default:
+                return 0;
+        }
+    }
+
+    /// <summary>Parse duration from a JsonElement that may be "MM:SS" or "367" (seconds).</summary>
+    private static double ParseDuration(JsonElement parent, string propertyName)
+    {
+        if (!parent.TryGetProperty(propertyName, out var el))
+            return 0;
+
+        if (el.ValueKind == JsonValueKind.Number)
+            return el.TryGetDouble(out var d) ? d : 0;
+
+        if (el.ValueKind == JsonValueKind.String)
+        {
+            var s = el.GetString() ?? "";
+            // Try direct number parse first
+            if (double.TryParse(s,
+                    System.Globalization.NumberStyles.Float,
+                    System.Globalization.CultureInfo.InvariantCulture, out var v))
+                return v;
+            // Try "MM:SS" or "HH:MM:SS" format
+            if (TimeSpan.TryParse(s, System.Globalization.CultureInfo.InvariantCulture, out var ts))
+                return ts.TotalSeconds;
+        }
+
+        return 0;
+    }
+
+    private static int ParseInt(JsonElement parent, string propertyName)
+    {
+        if (!parent.TryGetProperty(propertyName, out var el))
+            return 0;
+
+        if (el.ValueKind == JsonValueKind.Number)
+            return el.TryGetInt32(out var i) ? i : 0;
+        if (el.ValueKind == JsonValueKind.String
+            && int.TryParse(el.GetString(),
+                System.Globalization.NumberStyles.Integer,
+                System.Globalization.CultureInfo.InvariantCulture, out var iv))
+            return iv;
+
+        return 0;
+    }
+
+    private static bool ParseBool(JsonElement parent, string propertyName)
+    {
+        if (!parent.TryGetProperty(propertyName, out var el))
+            return false;
+        if (el.ValueKind == JsonValueKind.True) return true;
+        if (el.ValueKind == JsonValueKind.False) return false;
+        if (el.ValueKind == JsonValueKind.String
+            && bool.TryParse(el.GetString(), out var b))
+            return b;
+        return false;
+    }
+
+    private static string? TryGetStringValue(JsonElement parent, string propertyName)
+    {
+        if (!parent.TryGetProperty(propertyName, out var el))
+            return null;
+        if (el.ValueKind == JsonValueKind.String)
+        {
+            var s = el.GetString();
+            return string.IsNullOrWhiteSpace(s) ? null : s;
+        }
+        if (el.ValueKind == JsonValueKind.Number || el.ValueKind == JsonValueKind.True || el.ValueKind == JsonValueKind.False)
+            return el.ToString();
+        return null;
     }
 
     private void AddNamedAlert(JsonElement payload, string propertyName, AlertType type, float defaultDuration)

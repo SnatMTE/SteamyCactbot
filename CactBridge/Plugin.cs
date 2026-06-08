@@ -258,7 +258,7 @@ public sealed class Plugin : IDalamudPlugin
             var enc = wsService.GetEncounter();
             if (enc != null)
             {
-                partyDpsEntry.Text = $"{enc.DPS:F0}";
+                partyDpsEntry.Text = $"encDPS: {enc.DPS:F0}";
                 partyDpsEntry.Shown = true;
             }
             else
@@ -272,18 +272,29 @@ public sealed class Plugin : IDalamudPlugin
         }
 
         // Personal DPS
-        if (cfg.ShowPersonalDpsInBar && personalDpsEntry != null && localPlayerName != null)
+        if (cfg.ShowPersonalDpsInBar && personalDpsEntry != null)
         {
-            var player = wsService.GetPlayerCombatant(localPlayerName);
-            if (player != null)
+            double dpsValue = 0;
+
+            // First try to get the player's own DPS from the combatants list
+            if (localPlayerName != null)
             {
-                personalDpsEntry.Text = $"{player.DPS:F0}";
-                personalDpsEntry.Shown = true;
+                var player = wsService.GetPlayerCombatant(localPlayerName);
+                if (player != null)
+                    dpsValue = player.DPS;
             }
-            else
+
+            // If the player isn't in the combatants list (e.g. striking dummy),
+            // fall back to the encounter's overall DPS value
+            if (dpsValue == 0)
             {
-                personalDpsEntry.Shown = false;
+                var enc = wsService.GetEncounter();
+                if (enc != null)
+                    dpsValue = enc.DPS;
             }
+
+            personalDpsEntry.Text = $"DPS: {dpsValue:F0}";
+            personalDpsEntry.Shown = true;
         }
         else if (personalDpsEntry != null)
         {

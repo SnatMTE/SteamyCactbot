@@ -190,7 +190,7 @@ public class Configuration : IPluginConfiguration
     public bool ShowPartyDpsInBar { get; set; } = false;
 
     /// <summary>When true, shows personal DPS in the native server info bar.</summary>
-    public bool ShowPersonalDpsInBar { get; set; } = false;
+    public bool ShowPersonalDpsInBar { get; set; } = true;
 
     // -----------------------------------------------------------------------
     // Persistence helper
