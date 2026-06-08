@@ -68,6 +68,32 @@ public class CactbotAlert
 }
 
 // ---------------------------------------------------------------------------
+// Timeline model
+// ---------------------------------------------------------------------------
+
+/// <summary>
+/// A single entry in the encounter timeline, representing an upcoming
+/// boss ability with its time remaining.
+/// </summary>
+public class TimelineEntry
+{
+    /// <summary>Name of the ability / mechanic.</summary>
+    public string Text { get; set; } = string.Empty;
+
+    /// <summary>Time in seconds until this ability fires (positive = upcoming).</summary>
+    public double TimeRemaining { get; set; }
+
+    /// <summary>Absolute UTC time when this entry was received.</summary>
+    public DateTime ReceivedAt { get; init; } = DateTime.UtcNow;
+
+    /// <summary>True when the entry's time has passed (for pruning).</summary>
+    public bool IsExpired => TimeRemaining <= -5;
+
+    /// <summary>Duration in seconds this entry stays visible after its time passes.</summary>
+    public float Duration { get; set; } = 5f;
+}
+
+// ---------------------------------------------------------------------------
 // OverlayPlugin WebSocket wire types
 // ---------------------------------------------------------------------------
 
@@ -116,6 +142,25 @@ internal class BroadcastPayload
     public string? Text { get; set; }
 
     /// <summary>Optional display duration in seconds.</summary>
+    [JsonPropertyName("duration")]
+    public float? Duration { get; set; }
+}
+
+/// <summary>
+/// Payload shape for timeline entries broadcast by the Cactbot raidboss overlay.
+/// Format: <c>{ type: "timeline", text: "Ability Name", time: 123.4, duration?: n }</c>
+/// </summary>
+internal class TimelinePayload
+{
+    [JsonPropertyName("type")]
+    public string? Type { get; set; }
+
+    [JsonPropertyName("text")]
+    public string? Text { get; set; }
+
+    [JsonPropertyName("time")]
+    public double? Time { get; set; }
+
     [JsonPropertyName("duration")]
     public float? Duration { get; set; }
 }

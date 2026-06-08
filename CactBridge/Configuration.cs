@@ -90,6 +90,49 @@ public class Configuration : IPluginConfiguration
     public Vector4 AlertOutlineColor { get; set; } = new(0.00f, 0.00f, 0.00f, 1f);
 
     // -----------------------------------------------------------------------
+    // Timeline overlay settings
+    // -----------------------------------------------------------------------
+
+    /// <summary>Screen X position of the timeline overlay (pixels).</summary>
+    public float TimelineX { get; set; } = 100f;
+
+    /// <summary>Screen Y position of the timeline overlay (pixels).</summary>
+    public float TimelineY { get; set; } = 300f;
+
+    /// <summary>Width of the timeline overlay box in pixels.</summary>
+    public float TimelineWidth { get; set; } = 500f;
+
+    /// <summary>Height of the timeline overlay box in pixels.</summary>
+    public float TimelineHeight { get; set; } = 300f;
+
+    /// <summary>When true the timeline overlay cannot be dragged.</summary>
+    public bool LockTimelinePosition { get; set; } = false;
+
+    /// <summary>Font scale applied to timeline entry text.</summary>
+    public float TimelineFontScale { get; set; } = 1.0f;
+
+    /// <summary>Font preset for timeline entries.</summary>
+    public AlertFontPreset TimelineFontPreset { get; set; } = AlertFontPreset.FfxivAxis;
+
+    /// <summary>Custom text color for timeline entries (RGBA).</summary>
+    public Vector4 TimelineTextColor { get; set; } = new(1.00f, 1.00f, 1.00f, 1f);
+
+    /// <summary>When true, uses <see cref="TimelineTextColor"/> instead of default.</summary>
+    public bool UseCustomTimelineColor { get; set; } = false;
+
+    /// <summary>When true, draws a dark outline behind timeline text.</summary>
+    public bool TimelineTextOutline { get; set; } = false;
+
+    /// <summary>Colour of the timeline text outline (RGBA).</summary>
+    public Vector4 TimelineOutlineColor { get; set; } = new(0.00f, 0.00f, 0.00f, 1f);
+
+    /// <summary>Maximum number of timeline entries shown simultaneously.</summary>
+    public int MaxVisibleTimelineEntries { get; set; } = 10;
+
+    /// <summary>How far ahead to show timeline entries (seconds).</summary>
+    public float TimelineLookAhead { get; set; } = 30f;
+
+    // -----------------------------------------------------------------------
     // Persistence helper
     // -----------------------------------------------------------------------
 

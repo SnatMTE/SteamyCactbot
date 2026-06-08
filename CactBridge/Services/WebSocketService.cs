@@ -30,9 +30,10 @@ public sealed class WebSocketService : IDisposable
     // Configuration
     // -----------------------------------------------------------------------
 
-    private const string WsUrl           = "ws://127.0.0.1:10501/ws";
-    private const int    MaxStoredAlerts  = 20;
-    private const int    ReconnectDelayMs = 5_000;
+    private const string WsUrl                 = "ws://127.0.0.1:10501/ws";
+    private const int    MaxStoredAlerts       = 20;
+    private const int    MaxStoredTimelineEntries = 50;
+    private const int    ReconnectDelayMs      = 5_000;
 
     // Events confirmed to be registered in IINACT OverlayPlugin 0.19.x.
     // "onBroadcastMessage" and "onInCombat" do NOT exist in this build -
@@ -58,8 +59,10 @@ public sealed class WebSocketService : IDisposable
     private readonly Configuration       config;
     private readonly object              alertLock   = new();
     private readonly List<CactbotAlert>  alerts      = new();
-    private readonly CancellationTokenSource cts     = new();
-    private readonly ConcurrentQueue<string> chatQueue = new();
+    private readonly object              timelineLock      = new();
+    private readonly List<TimelineEntry> timelineEntries   = new();
+    private readonly CancellationTokenSource cts         = new();
+    private readonly ConcurrentQueue<string> chatQueue   = new();
     private readonly System.Collections.Generic.HashSet<string> seenTypes = new();
     private int              logLineCount;
 
@@ -109,6 +112,28 @@ public sealed class WebSocketService : IDisposable
 
             var start = Math.Max(0, alerts.Count - maxCount);
             return alerts.GetRange(start, alerts.Count - start);
+        }
+    }
+
+    /// <summary>
+    /// Returns a point-in-time snapshot of non-expired timeline entries,
+    /// ordered by time remaining (closest first), trimmed to <paramref name="maxCount"/>.
+    /// Thread-safe.
+    /// </summary>
+    public List<TimelineEntry> GetTimelineEntries(int maxCount, float lookAheadSeconds = 30f)
+    {
+        lock (timelineLock)
+        {
+            // Prune expired and far-future entries
+            var cutoff = DateTime.UtcNow.AddSeconds(lookAheadSeconds);
+            timelineEntries.RemoveAll(e => e.IsExpired || e.ReceivedAt > cutoff);
+
+            // Sort by time remaining (soonest first)
+            timelineEntries.Sort((a, b) => a.TimeRemaining.CompareTo(b.TimeRemaining));
+
+            return timelineEntries.Count > maxCount
+                ? timelineEntries.GetRange(0, maxCount)
+                : new List<TimelineEntry>(timelineEntries);
         }
     }
 
@@ -248,6 +273,7 @@ public sealed class WebSocketService : IDisposable
                     else if (root.TryGetProperty("zoneID", out var zoneIdEl))
                         CurrentZone = $"Zone {zoneIdEl}";
                     log.Information($"[CactBridge] Zone changed: {CurrentZone}");
+                    ClearTimelineEntries();
                     break;
 
                 case "LogLine":
@@ -376,6 +402,24 @@ public sealed class WebSocketService : IDisposable
         if (!root.TryGetProperty("msg", out var payload) || payload.ValueKind != JsonValueKind.Object)
             return;
 
+        // Check for timeline-type messages first
+        if (TryGetString(payload, "type", out var typeStr))
+        {
+            var typeLower = typeStr.ToLowerInvariant();
+            if (typeLower is "timeline" or "timelineentry" or "timeline-entry")
+            {
+                HandleTimelineEntry(payload);
+                return;
+            }
+        }
+
+        // Also detect timeline entries by the "time" field
+        if (payload.TryGetProperty("time", out var timeProp) && timeProp.ValueKind == JsonValueKind.Number)
+        {
+            HandleTimelineEntry(payload);
+            return;
+        }
+
         // Common raidboss shape: { type: "alarm"|"alert"|"info", text: "...", duration?: n }
         // Also handles: { alarmText: "...", alertText: "...", infoText: "..." }
         // Only process ONE alert per message to avoid duplicates.
@@ -398,6 +442,50 @@ public sealed class WebSocketService : IDisposable
         AddNamedAlert(payload, "alertText", AlertType.Alert, 4f);
         AddNamedAlert(payload, "infoText", AlertType.Info, 3f);
         AddNamedAlert(payload, "tts", AlertType.Info, 3f);
+    }
+
+    /// <summary>
+    /// Processes a timeline entry from a BroadcastMessage.
+    /// Expected shape: { type: "timeline", text: "Ability Name", time: 123.4, duration?: n }
+    /// </summary>
+    private void HandleTimelineEntry(JsonElement payload)
+    {
+        var text = TryGetString(payload, "text", out var t) ? t?.Trim() : null;
+        if (string.IsNullOrWhiteSpace(text))
+            return;
+
+        var timeRemaining = TryGetFloat(payload, "time", out var timeVal)
+            ? (double)timeVal
+            : 0.0;
+
+        lock (timelineLock)
+        {
+            // Avoid duplicates: if the same text already exists with close time, update it
+            var existing = timelineEntries.Find(e =>
+                e.Text.Equals(text, StringComparison.OrdinalIgnoreCase) &&
+                Math.Abs(e.TimeRemaining - timeRemaining) < 2.0);
+
+            if (existing != null)
+            {
+                existing.TimeRemaining = timeRemaining;
+                existing.ReceivedAt = DateTime.UtcNow;
+            }
+            else
+            {
+                timelineEntries.Add(new TimelineEntry
+                {
+                    Text = text,
+                    TimeRemaining = timeRemaining,
+                    ReceivedAt = DateTime.UtcNow,
+                });
+            }
+
+            // Bound the list
+            if (timelineEntries.Count > MaxStoredTimelineEntries)
+                timelineEntries.RemoveRange(0, timelineEntries.Count - MaxStoredTimelineEntries);
+        }
+
+        log.Debug($"[CactBridge] [Timeline] \"{text}\" in {timeRemaining:F1}s");
     }
 
     private void AddNamedAlert(JsonElement payload, string propertyName, AlertType type, float defaultDuration)
@@ -440,6 +528,13 @@ public sealed class WebSocketService : IDisposable
     /// messages to <c>IChatGui</c>.
     /// </summary>
     public bool TryDequeueChat(out string message) => chatQueue.TryDequeue(out message!);
+
+    /// <summary>Clears all stored timeline entries (e.g. on zone change). Thread-safe.</summary>
+    public void ClearTimelineEntries()
+    {
+        lock (timelineLock)
+            timelineEntries.Clear();
+    }
 
     private void EnqueueAlert(string text, AlertType alertType, float duration)
     {

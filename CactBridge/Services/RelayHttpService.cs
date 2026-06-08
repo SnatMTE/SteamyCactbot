@@ -26,6 +26,7 @@ public sealed class RelayHttpService : IDisposable
     private const string RemoteBase    = "https://proxy.iinact.com/overlay/cactbot/ui/raidboss/";
     private const string RemoteHtml    = RemoteBase + "raidboss.html";
     private const string DefaultQuery  = "?alerts=1&timeline=0&OVERLAY_WS=ws://127.0.0.1:10501/ws";
+    private const string TimelineDefaultQuery = "?alerts=0&timeline=1&OVERLAY_WS=ws://127.0.0.1:10501/ws";
 
     private static readonly HttpClient HttpClient = new();
 
@@ -37,9 +38,14 @@ public sealed class RelayHttpService : IDisposable
     /// <summary>Bound port, or -1 if the server failed to start.</summary>
     public int Port { get; private set; } = -1;
 
-    /// <summary>The URL the user should load as their Cactbot overlay.</summary>
+    /// <summary>The URL the user should load as their Cactbot overlay (alerts mode).</summary>
     public string OverlayUrl => Port > 0
         ? $"http://127.0.0.1:{Port}/{DefaultQuery}"
+        : "(server not running)";
+
+    /// <summary>The URL for the timeline-only overlay view.</summary>
+    public string TimelineOverlayUrl => Port > 0
+        ? $"http://127.0.0.1:{Port}/{TimelineDefaultQuery}"
         : "(server not running)";
 
     public RelayHttpService(IPluginLog log, string pluginDirectory, int preferredPort = 9876)

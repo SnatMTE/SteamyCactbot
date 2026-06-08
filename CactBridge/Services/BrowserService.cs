@@ -10,7 +10,8 @@ namespace CactBridge.Services;
 
 /// <summary>
 /// Manages an embedded headless Chromium browser that loads the Cactbot
-/// raidboss overlay in the background.
+/// raidboss overlay in the background. Supports a primary (alerts) page
+/// and an optional secondary (timeline) page sharing the same browser process.
 ///
 /// On first use, Chromium is downloaded once to <c>{pluginDir}/chromium/</c>
 /// (~150 MB).  Subsequent starts reuse the cached copy.  No external browser
@@ -50,20 +51,27 @@ public sealed class BrowserService : IDisposable
         _                        => "Unknown",
     };
 
+    /// <summary>Status string for the timeline page specifically.</summary>
+    public string TimelineStatus { get; private set; } = "Idle";
+
     // -----------------------------------------------------------------------
     // Private state
     // -----------------------------------------------------------------------
     private readonly IPluginLog log;
     private readonly string     overlayUrl;
+    private readonly string     timelineUrl;
     private readonly string     chromiumPath;
     private IBrowser?           browser;
+    private IPage?              alertsPage;
+    private IPage?              timelinePage;
     private CancellationTokenSource cts = new();
     private bool                disposed;
 
-    public BrowserService(IPluginLog log, string pluginDirectory, string overlayUrl)
+    public BrowserService(IPluginLog log, string pluginDirectory, string overlayUrl, string timelineUrl)
     {
         this.log          = log;
         this.overlayUrl   = overlayUrl;
+        this.timelineUrl  = timelineUrl;
         this.chromiumPath = Path.Combine(pluginDirectory, "chromium");
         _ = Task.Run(StartAsync);
     }
@@ -77,6 +85,18 @@ public sealed class BrowserService : IDisposable
         cts.Cancel();
         cts = new CancellationTokenSource();
         _ = StopBrowserAsync().ContinueWith(_ => StartAsync());
+    }
+
+    /// <summary>Restart only the timeline page (navigate to the timeline URL).</summary>
+    public void RestartTimeline()
+    {
+        var page = timelinePage;
+        if (page != null && !page.IsClosed)
+            _ = page.GoToAsync(timelineUrl).ContinueWith(t =>
+            {
+                if (t.Exception != null)
+                    log.Warning($"[CactBridge] Failed to reload timeline page: {t.Exception.Message}");
+            });
     }
 
     // -----------------------------------------------------------------------
@@ -151,21 +171,41 @@ public sealed class BrowserService : IDisposable
             if (ct.IsCancellationRequested) { await StopBrowserAsync(); return; }
 
             // ------------------------------------------------------------------
-            // 3. Navigate to Cactbot overlay
+            // 3. Navigate to Cactbot overlay (alerts page)
             // ------------------------------------------------------------------
-            var page = await browser.NewPageAsync();
-            await page.GoToAsync(overlayUrl);
+            alertsPage = await browser.NewPageAsync();
+            await alertsPage.GoToAsync(overlayUrl);
+            log.Information($"[CactBridge] Alerts page → {overlayUrl}");
+
+            if (ct.IsCancellationRequested) { await StopBrowserAsync(); return; }
+
+            // ------------------------------------------------------------------
+            // 4. Navigate to Cactbot overlay (timeline page)
+            // ------------------------------------------------------------------
+            if (!string.IsNullOrWhiteSpace(timelineUrl))
+            {
+                TimelineStatus = "Launching…";
+                timelinePage = await browser.NewPageAsync();
+                await timelinePage.GoToAsync(timelineUrl);
+                TimelineStatus = "Running";
+                log.Information($"[CactBridge] Timeline page → {timelineUrl}");
+            }
+            else
+            {
+                TimelineStatus = "Not configured";
+            }
 
             State = BrowserState.Running;
-            log.Information($"[CactBridge] Embedded Chromium running → {overlayUrl}");
         }
         catch (OperationCanceledException)
         {
             State = BrowserState.Idle;
+            TimelineStatus = "Idle";
         }
         catch (Exception ex)
         {
             State = BrowserState.Error;
+            TimelineStatus = "Error";
             log.Error($"[CactBridge] BrowserService error: {ex}");
         }
     }
@@ -174,6 +214,18 @@ public sealed class BrowserService : IDisposable
     {
         try
         {
+            if (timelinePage is not null)
+            {
+                await timelinePage.CloseAsync();
+                timelinePage.Dispose();
+                timelinePage = null;
+            }
+            if (alertsPage is not null)
+            {
+                await alertsPage.CloseAsync();
+                alertsPage.Dispose();
+                alertsPage = null;
+            }
             if (browser is not null)
             {
                 await browser.CloseAsync();
@@ -183,6 +235,7 @@ public sealed class BrowserService : IDisposable
         }
         catch { /* best-effort */ }
         State = BrowserState.Idle;
+        TimelineStatus = "Idle";
     }
 
     // -----------------------------------------------------------------------

@@ -46,11 +46,12 @@ public sealed class Plugin : IDalamudPlugin
     // -----------------------------------------------------------------------
     // Plugin-owned objects
     // -----------------------------------------------------------------------
-    private readonly WebSocketService  wsService;
-    private readonly RelayHttpService  relayService;
-    private readonly BrowserService   browserService;
-    private          ConfigWindow      ConfigWindow  { get; init; }
-    private          OverlayWindow     OverlayWindow { get; init; }
+    private readonly WebSocketService       wsService;
+    private readonly RelayHttpService       relayService;
+    private readonly BrowserService        browserService;
+    private          ConfigWindow           ConfigWindow  { get; init; }
+    private          OverlayWindow          OverlayWindow { get; init; }
+    private          TimelineOverlayWindow  TimelineOverlayWindow { get; init; }
 
     // -----------------------------------------------------------------------
     // Constructor
@@ -67,8 +68,8 @@ public sealed class Plugin : IDalamudPlugin
         var pluginDir = PluginInterface.AssemblyLocation.DirectoryName ?? string.Empty;
         relayService   = new RelayHttpService(Log, pluginDir);
 
-        // Launch headless browser pointing at the local proxied Cactbot overlay
-        browserService = new BrowserService(Log, pluginDir, relayService.OverlayUrl);
+        // Launch headless browser with both alerts and timeline pages
+        browserService = new BrowserService(Log, pluginDir, relayService.OverlayUrl, relayService.TimelineOverlayUrl);
 
         // Installation announcements — show progress in the chat announcement channel.
         // 1. Browser download starting
@@ -79,14 +80,17 @@ public sealed class Plugin : IDalamudPlugin
 
         // Create windows - OverlayWindow must exist before ConfigWindow
         // so ConfigWindow can hold a reference to it
-        OverlayWindow = new OverlayWindow(this, wsService);
-        ConfigWindow  = new ConfigWindow(this, wsService, OverlayWindow, relayService, browserService);
+        OverlayWindow          = new OverlayWindow(this, wsService);
+        TimelineOverlayWindow  = new TimelineOverlayWindow(this, wsService);
+        ConfigWindow           = new ConfigWindow(this, wsService, OverlayWindow, TimelineOverlayWindow, relayService, browserService);
 
         WindowSystem.AddWindow(ConfigWindow);
         WindowSystem.AddWindow(OverlayWindow);
+        WindowSystem.AddWindow(TimelineOverlayWindow);
 
-        // The text overlay should always remain visible.
+        // Both overlays should always remain visible.
         OverlayWindow.IsOpen = true;
+        TimelineOverlayWindow.IsOpen = true;
 
         // Register slash command
         CommandManager.AddHandler(CommandName, new CommandInfo(OnCommand)
@@ -136,6 +140,7 @@ public sealed class Plugin : IDalamudPlugin
         WindowSystem.RemoveAllWindows();
         ConfigWindow.Dispose();
         OverlayWindow.Dispose();
+        TimelineOverlayWindow.Dispose();
 
         // Cancels the background task and closes the WebSocket gracefully
         wsService.Dispose();

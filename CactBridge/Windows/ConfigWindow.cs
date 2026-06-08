@@ -24,14 +24,16 @@ public class ConfigWindow : Window, IDisposable
         "FFXIV Trump Gothic",
     };
 
-    private readonly Configuration    configuration;
-    private readonly WebSocketService wsService;
-    private readonly OverlayWindow    overlayWindow;
-    private readonly RelayHttpService relayService;
-    private readonly BrowserService   browserService;
+    private readonly Configuration          configuration;
+    private readonly WebSocketService       wsService;
+    private readonly OverlayWindow          overlayWindow;
+    private readonly TimelineOverlayWindow  timelineWindow;
+    private readonly RelayHttpService       relayService;
+    private readonly BrowserService         browserService;
 
     // Constant window ID - the title can change without breaking ImGui identity
-    public ConfigWindow(Plugin plugin, WebSocketService wsService, OverlayWindow overlayWindow, RelayHttpService relayService, BrowserService browserService)
+    public ConfigWindow(Plugin plugin, WebSocketService wsService, OverlayWindow overlayWindow,
+                        TimelineOverlayWindow timelineWindow, RelayHttpService relayService, BrowserService browserService)
         : base("CactBridge Settings###CactBridgeConfig")
     {
         Flags = ImGuiWindowFlags.NoResize    |
@@ -40,10 +42,11 @@ public class ConfigWindow : Window, IDisposable
         Size          = new Vector2(620, 720);
         SizeCondition = ImGuiCond.Always;
 
-        configuration      = plugin.Configuration;
-        this.wsService     = wsService;
-        this.overlayWindow = overlayWindow;
-        this.relayService  = relayService;
+        configuration       = plugin.Configuration;
+        this.wsService      = wsService;
+        this.overlayWindow  = overlayWindow;
+        this.timelineWindow = timelineWindow;
+        this.relayService   = relayService;
         this.browserService = browserService;
     }
 
@@ -304,15 +307,195 @@ public class ConfigWindow : Window, IDisposable
             }
 
             // ==============================================================
-            // Timeline tab (placeholder)
+            // Timeline tab
             // ==============================================================
             if (ImGui.BeginTabItem("Timeline"))
             {
-                var winSize = ImGui.GetWindowSize();
-                var textSize = ImGui.CalcTextSize("Coming Soon");
-                ImGui.SetCursorPosX((winSize.X - textSize.X) * 0.5f);
-                ImGui.SetCursorPosY((winSize.Y - textSize.Y) * 0.5f);
-                ImGui.TextColored(new Vector4(0.55f, 0.55f, 0.55f, 1f), "Coming Soon");
+                // ----------------------------------------------------------
+                // Background browser status (timeline page)
+                // ----------------------------------------------------------
+                ImGui.TextColored(new Vector4(1.00f, 0.85f, 0.10f, 1f), "Background Cactbot Browser (Timeline)");
+                ImGui.Spacing();
+
+                if (relayService.Port <= 0)
+                {
+                    ImGui.TextColored(new Vector4(1f, 0.3f, 0.3f, 1f), "Relay HTTP server failed to start (port in use?).");
+                }
+                else
+                {
+                    var tlStatus = browserService.TimelineStatus;
+                    if (tlStatus == "Running")
+                        ImGui.TextColored(new Vector4(0.20f, 1.00f, 0.20f, 1f), $"\u25cf {tlStatus}");
+                    else if (tlStatus == "Error")
+                        ImGui.TextColored(new Vector4(1f, 0.3f, 0.3f, 1f), $"\u25cf {tlStatus}");
+                    else if (tlStatus == "Launching\u2026")
+                        ImGui.TextColored(new Vector4(0.80f, 0.80f, 0.20f, 1f), $"\u23f3 {tlStatus}");
+                    else
+                        ImGui.TextColored(new Vector4(0.55f, 0.55f, 0.55f, 1f), $"\u25cf {tlStatus}");
+
+                    ImGui.TextColored(new Vector4(0.55f, 0.55f, 0.55f, 1f), relayService.TimelineOverlayUrl);
+                }
+
+                ImGui.Spacing();
+                if (ImGui.Button("Restart Timeline Browser"))
+                    browserService.RestartTimeline();
+                ImGui.SameLine();
+                if (ImGui.Button("Copy Timeline URL"))
+                    ImGui.SetClipboardText(relayService.TimelineOverlayUrl);
+                ImGui.SameLine();
+                ImGui.TextColored(new Vector4(0.55f, 0.55f, 0.55f, 1f), "(?)");
+                if (ImGui.IsItemHovered())
+                    ImGui.SetTooltip("Copy URL to open the timeline overlay in your own browser if needed.");
+
+                ImGui.Separator();
+
+                // ----------------------------------------------------------
+                // Move mode
+                // ----------------------------------------------------------
+                var tlMoveMode = timelineWindow.IsMoveMode;
+                if (ImGui.Checkbox("Move mode (Timeline)", ref tlMoveMode))
+                {
+                    timelineWindow.SetMoveMode(tlMoveMode);
+                    timelineWindow.IsOpen = true;
+                }
+
+                // ----------------------------------------------------------
+                // Position lock
+                // ----------------------------------------------------------
+                var tlLocked = configuration.LockTimelinePosition;
+                if (ImGui.Checkbox("Lock timeline overlay position", ref tlLocked))
+                {
+                    configuration.LockTimelinePosition = tlLocked;
+                    configuration.Save();
+                }
+
+                // ----------------------------------------------------------
+                // Max visible entries + look-ahead
+                // ----------------------------------------------------------
+                var tlMax = configuration.MaxVisibleTimelineEntries;
+                ImGui.SetNextItemWidth(120f);
+                if (ImGui.SliderInt("Max visible entries", ref tlMax, 1, 30))
+                {
+                    configuration.MaxVisibleTimelineEntries = tlMax;
+                    configuration.Save();
+                }
+
+                var tlLookAhead = configuration.TimelineLookAhead;
+                ImGui.SetNextItemWidth(120f);
+                if (ImGui.SliderFloat("Look-ahead (seconds)", ref tlLookAhead, 5f, 120f))
+                {
+                    configuration.TimelineLookAhead = tlLookAhead;
+                    configuration.Save();
+                }
+
+                ImGui.Separator();
+
+                // ----------------------------------------------------------
+                // Font size controls
+                // ----------------------------------------------------------
+                ImGui.Text("Font size");
+                ImGui.SameLine();
+                if (ImGui.Button("-##tl") && configuration.TimelineFontScale > 0.1f)
+                {
+                    configuration.TimelineFontScale = Math.Max(0.1f, configuration.TimelineFontScale - 0.1f);
+                    configuration.Save();
+                }
+                ImGui.SameLine();
+                ImGui.Text($"{configuration.TimelineFontScale:0.0}x");
+                ImGui.SameLine();
+                if (ImGui.Button("+##tl"))
+                {
+                    configuration.TimelineFontScale += 0.1f;
+                    configuration.Save();
+                }
+
+                var tlFontPreset = (int)configuration.TimelineFontPreset;
+                ImGui.SetNextItemWidth(240f);
+                if (ImGui.Combo("Timeline font", ref tlFontPreset, FontPresetLabels, FontPresetLabels.Length))
+                {
+                    configuration.TimelineFontPreset = (AlertFontPreset)tlFontPreset;
+                    configuration.Save();
+                }
+
+                // ----------------------------------------------------------
+                // Text colour override
+                // ----------------------------------------------------------
+                var tlUseCustomColor = configuration.UseCustomTimelineColor;
+                if (ImGui.Checkbox("Override timeline text colour", ref tlUseCustomColor))
+                {
+                    configuration.UseCustomTimelineColor = tlUseCustomColor;
+                    configuration.Save();
+                }
+                if (tlUseCustomColor)
+                {
+                    var tlTextCol = configuration.TimelineTextColor;
+                    if (ImGui.ColorEdit4("Timeline colour", ref tlTextCol, ImGuiColorEditFlags.NoInputs | ImGuiColorEditFlags.AlphaPreviewHalf))
+                    {
+                        configuration.TimelineTextColor = tlTextCol;
+                        configuration.Save();
+                    }
+                }
+
+                // ----------------------------------------------------------
+                // Text outline
+                // ----------------------------------------------------------
+                var tlOutline = configuration.TimelineTextOutline;
+                if (ImGui.Checkbox("Timeline text outline", ref tlOutline))
+                {
+                    configuration.TimelineTextOutline = tlOutline;
+                    configuration.Save();
+                }
+                if (tlOutline)
+                {
+                    var tlOutlineCol = configuration.TimelineOutlineColor;
+                    if (ImGui.ColorEdit4("Timeline outline colour", ref tlOutlineCol, ImGuiColorEditFlags.NoInputs | ImGuiColorEditFlags.AlphaPreviewHalf))
+                    {
+                        configuration.TimelineOutlineColor = tlOutlineCol;
+                        configuration.Save();
+                    }
+                }
+
+                ImGui.Separator();
+
+                // ----------------------------------------------------------
+                // Position readout + reset
+                // ----------------------------------------------------------
+                ImGui.Text($"Position: ({configuration.TimelineX:F0}, {configuration.TimelineY:F0})");
+                ImGui.SameLine();
+                if (ImGui.Button("Reset##tl"))
+                {
+                    configuration.TimelineX = 100f;
+                    configuration.TimelineY = 300f;
+                    timelineWindow.ResetPosition();
+                    configuration.Save();
+                }
+
+                ImGui.Separator();
+
+                // ----------------------------------------------------------
+                // Overlay box size
+                // ----------------------------------------------------------
+                ImGui.TextColored(new Vector4(1.00f, 0.85f, 0.10f, 1f), "Timeline Overlay Box Size");
+                ImGui.Spacing();
+
+                var tlBoxW = configuration.TimelineWidth;
+                var tlBoxH = configuration.TimelineHeight;
+                ImGui.SetNextItemWidth(100f);
+                if (ImGui.DragFloat("Width##tl", ref tlBoxW, 1f, 100f, 2000f, "%.0f"))
+                {
+                    configuration.TimelineWidth = Math.Clamp(tlBoxW, 100f, 2000f);
+                    configuration.Save();
+                }
+                ImGui.SameLine();
+                ImGui.SetNextItemWidth(100f);
+                if (ImGui.DragFloat("Height##tl", ref tlBoxH, 1f, 50f, 1000f, "%.0f"))
+                {
+                    configuration.TimelineHeight = Math.Clamp(tlBoxH, 50f, 1000f);
+                    configuration.Save();
+                }
+
+                ImGui.Spacing();
+                ImGui.Separator();
                 ImGui.EndTabItem();
             }
 
