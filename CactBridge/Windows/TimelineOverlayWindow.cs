@@ -150,8 +150,15 @@ public class TimelineOverlayWindow : Window, IDisposable
         frameEntries.AddRange(wsService.GetTimelineEntries(cfg.MaxVisibleTimelineEntries, cfg.TimelineLookAhead));
 
         var boxSize = ImGui.GetWindowSize();
-        var wrapWidth = Math.Max(1f, boxSize.X - BoxPadding * 2f);
-        var lineHeight = ImGui.GetFontSize() * cfg.TimelineFontScale;
+        var windowPos = ImGui.GetWindowPos();
+        var drawList = ImGui.GetWindowDrawList();
+        var fontSize = ImGui.GetFontSize();
+
+        const float barHeight    = 28f;
+        const float barGap       = 4f;
+        const float barMarginX   = 8f;
+        const float borderRadius = 3f;
+        const float textPadX     = 8f;
 
         // Nothing to show – render a subtle drag-handle
         if (frameEntries.Count == 0)
@@ -164,60 +171,97 @@ public class TimelineOverlayWindow : Window, IDisposable
             return;
         }
 
-        // Measure total height
-        var totalHeight = 0f;
-        var textSizes = new Vector2[frameEntries.Count];
-        for (int i = 0; i < frameEntries.Count; i++)
-        {
-            var text = BuildDisplayText(frameEntries[i]);
-            textSizes[i] = ImGui.CalcTextSize(text, false, wrapWidth);
-            totalHeight += textSizes[i].Y;
-            if (i > 0) totalHeight += 4f;
-        }
+        // Calculate total height and vertical offset to centre the block
+        var totalHeight = frameEntries.Count * barHeight + (frameEntries.Count - 1) * barGap;
+        var startY = Math.Max(BoxPadding, (boxSize.Y - totalHeight) * 0.5f);
 
-        // Vertically centre the block
-        var cursorY = Math.Max(BoxPadding, (boxSize.Y - totalHeight) * 0.5f);
-        var windowPos = ImGui.GetWindowPos();
-
-        var baseColor = cfg.UseCustomTimelineColor ? cfg.TimelineTextColor : DefaultTimelineColor;
-        var colorU32 = ImGui.ColorConvertFloat4ToU32(baseColor);
-        var drawList = ImGui.GetWindowDrawList();
+        var outlineU32 = cfg.TimelineTextOutline
+            ? ImGui.ColorConvertFloat4ToU32(cfg.TimelineOutlineColor)
+            : 0u;
 
         for (int i = 0; i < frameEntries.Count; i++)
         {
             var entry = frameEntries[i];
-            var text = BuildDisplayText(entry);
-            var textSize = textSizes[i];
 
-            // Colour intensity based on time remaining (closer = brighter)
-            var intensity = Math.Clamp((float)(entry.TimeRemaining / 15.0), 0.3f, 1.0f);
-            var entryColor = cfg.UseCustomTimelineColor
-                ? baseColor
-                : new Vector4(0.60f * intensity, 0.80f * intensity, 1.00f * intensity, 1f);
-            var entryColorU32 = ImGui.ColorConvertFloat4ToU32(entryColor);
+            // Bar rectangle coordinates
+            var barX = barMarginX;
+            var barY = startY + i * (barHeight + barGap);
+            var barW = boxSize.X - barMarginX * 2f;
 
-            var lines = WrapTextToWidth(text, wrapWidth, lineHeight);
+            // Fill ratio: 0 = just appeared, 1 = about to expire
+            var initTime = Math.Max(entry.InitialTimeRemaining, 0.1);
+            var fillRatio = (float)Math.Clamp(1.0 - (entry.TimeRemaining / initTime), 0.0, 1.0);
 
-            for (int l = 0; l < lines.Count; l++)
+            // Background rectangle (dark, rounded)
+            drawList.AddRectFilled(
+                windowPos + new Vector2(barX, barY),
+                windowPos + new Vector2(boxSize.X - barMarginX, barY + barHeight),
+                0x40000000, borderRadius);
+
+            // Fill bar width
+            var fillW = (float)Math.Max(barW * fillRatio, 0.0);
+            if (fillW > 0f)
             {
-                var lineWidth = ImGui.CalcTextSize(lines[l]).X;
-                var lineX = Math.Max(0f, (boxSize.X - lineWidth) * 0.5f);
-                var lineY = cursorY + l * lineHeight;
-                var screenPos = windowPos + new Vector2(lineX, lineY);
+                // Colour based on time remaining to simulate web version urgency
+                uint fillColor;
+                var timeRem = (float)entry.TimeRemaining;
+                if (timeRem <= 0)
+                    fillColor = 0xCCFF4444u;  // red (past due)
+                else if (timeRem <= 3)
+                    fillColor = 0xCCFF6644u;  // orange-red
+                else if (timeRem <= 6)
+                    fillColor = 0xCCFFAA44u;  // orange
+                else if (timeRem <= 10)
+                    fillColor = 0xCCCCCC44u;  // yellow-green
+                else
+                    fillColor = 0xCC44CC44u;  // green
 
-                if (cfg.TimelineTextOutline)
+                if (cfg.UseCustomTimelineColor)
                 {
-                    var outlineU32 = ImGui.ColorConvertFloat4ToU32(cfg.TimelineOutlineColor);
-                    for (int dx = -1; dx <= 1; dx++)
-                        for (int dy = -1; dy <= 1; dy++)
-                            if (dx != 0 || dy != 0)
-                                drawList.AddText(screenPos + new Vector2(dx, dy), outlineU32, lines[l]);
+                    var custom = cfg.TimelineTextColor;
+                    fillColor = ImGui.ColorConvertFloat4ToU32(new Vector4(
+                        custom.X * (1f - fillRatio * 0.5f),
+                        custom.Y * (1f - fillRatio * 0.3f),
+                        custom.Z,
+                        custom.W));
                 }
 
-                drawList.AddText(screenPos, entryColorU32, lines[l]);
+                drawList.AddRectFilled(
+                    windowPos + new Vector2(barX, barY),
+                    windowPos + new Vector2(barX + fillW, barY + barHeight),
+                    fillColor, borderRadius,
+                    fillRatio >= 0.99f ? ImDrawFlags.RoundCornersAll : ImDrawFlags.RoundCornersLeft);
             }
 
-            cursorY += textSize.Y + 4f;
+            // --- Text overlays ---
+
+            // Ability name on the left
+            var textY = barY + (barHeight - fontSize) * 0.5f;
+            var namePos = windowPos + new Vector2(barX + textPadX, textY);
+
+            if (cfg.TimelineTextOutline)
+            {
+                for (int dx = -1; dx <= 1; dx++)
+                    for (int dy = -1; dy <= 1; dy++)
+                        if (dx != 0 || dy != 0)
+                            drawList.AddText(namePos + new Vector2(dx, dy), outlineU32, entry.Text);
+            }
+            drawList.AddText(namePos, 0xFFFFFFFF, entry.Text);
+
+            // Time remaining on the right
+            var timeText = entry.TimeRemaining > 0 ? $"{entry.TimeRemaining:F1}s" : "NOW";
+            var timeTextSize = ImGui.CalcTextSize(timeText);
+            var timePos = windowPos + new Vector2(
+                boxSize.X - barMarginX - textPadX - timeTextSize.X, textY);
+
+            if (cfg.TimelineTextOutline)
+            {
+                for (int dx = -1; dx <= 1; dx++)
+                    for (int dy = -1; dy <= 1; dy++)
+                        if (dx != 0 || dy != 0)
+                            drawList.AddText(timePos + new Vector2(dx, dy), outlineU32, timeText);
+            }
+            drawList.AddText(timePos, 0xFFFFFFFF, timeText);
         }
 
         // Persist position and size

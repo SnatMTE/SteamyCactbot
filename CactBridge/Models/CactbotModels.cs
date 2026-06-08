@@ -80,11 +80,24 @@ public class TimelineEntry
     /// <summary>Name of the ability / mechanic.</summary>
     public string Text { get; set; } = string.Empty;
 
-    /// <summary>Time in seconds until this ability fires (positive = upcoming).</summary>
-    public double TimeRemaining { get; set; }
+    /// <summary>Initial time in seconds until this ability fires (at the moment it was received).</summary>
+    public double InitialTimeRemaining { get; set; }
 
     /// <summary>Absolute UTC time when this entry was received.</summary>
     public DateTime ReceivedAt { get; set; } = DateTime.UtcNow;
+
+    /// <summary>
+    /// Dynamically calculated time remaining in seconds until this ability fires.
+    /// Counts down in real-time from <see cref="InitialTimeRemaining"/>.
+    /// </summary>
+    public double TimeRemaining
+    {
+        get
+        {
+            var elapsed = (DateTime.UtcNow - ReceivedAt).TotalSeconds;
+            return InitialTimeRemaining - elapsed;
+        }
+    }
 
     /// <summary>True when the entry's time has passed (for pruning).</summary>
     public bool IsExpired => TimeRemaining <= -5;

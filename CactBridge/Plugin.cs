@@ -79,6 +79,19 @@ public sealed class Plugin : IDalamudPlugin
         // Launch headless browser with both alerts and timeline pages
         browserService = new BrowserService(Log, pluginDir, relayService.OverlayUrl, relayService.TimelineOverlayUrl);
 
+        // Forward ACT log lines from the plugin's WebSocket into the headless
+        // browser page, so the Cactbot timeline controller receives data even
+        // if the browser's own WebSocket connection to OverlayPlugin fails.
+        wsService.OnRawLogLine += browserService.ForwardLogLine;
+
+        // Forward zone-change events so Cactbot's PopupText.OnChangeZone fires,
+        // which calls ReloadTimelines() and activates the timeline for the zone.
+        wsService.OnZoneChanged += browserService.ForwardChangeZone;
+
+        // Receive broadcasts from the headless browser pages via the native
+        // PuppeteerSharp bridge (bypasses OverlayPlugin WebSocket entirely).
+        browserService.OnPageBroadcast += wsService.HandlePageBroadcast;
+
         // Installation announcements — show progress in the chat announcement channel.
         // 1. Browser download starting
         wsService.EnqueueChatMessage("Installing: Browser...");

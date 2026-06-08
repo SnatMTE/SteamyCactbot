@@ -73,8 +73,14 @@ public sealed class WebSocketService : IDisposable
     private bool             disposed;
 
     // -----------------------------------------------------------------------
-    // Public properties (safe to read from any thread)
+    // Public events / properties (safe to read from any thread)
     // -----------------------------------------------------------------------
+
+    /// <summary>Fired for every raw ACT log line received (including lines this plugin ignores).</summary>
+    public Action<string>? OnRawLogLine { get; set; }
+
+    /// <summary>Fired when a zone change event is received.</summary>
+    public Action<int, string>? OnZoneChanged { get; set; }
 
     /// <summary>True when the WebSocket is in the <see cref="WebSocketState.Open"/> state.</summary>
     public bool IsConnected => socket?.State == WebSocketState.Open;
@@ -201,6 +207,18 @@ public sealed class WebSocketService : IDisposable
             endOfMessage: true,
             cancellationToken: token);
 
+        // Some OverlayPlugin / ACT WS servers require an explicit "start"
+        // after subscribing to begin forwarding CombatData events.
+        var startJson  = JsonSerializer.Serialize(new { call = "start" });
+        var startBytes = Encoding.UTF8.GetBytes(startJson);
+        await socket.SendAsync(
+            new ArraySegment<byte>(startBytes),
+            WebSocketMessageType.Text,
+            endOfMessage: true,
+            cancellationToken: token);
+
+        log.Information("[CactBridge] Subscribed and sent start command.");
+
         // ------------------------------------------------------------------
         // Receive loop - reassemble fragmented frames before processing
         // ------------------------------------------------------------------
@@ -251,12 +269,27 @@ public sealed class WebSocketService : IDisposable
             using var doc = JsonDocument.Parse(json);
             var root = doc.RootElement;
 
-            if (!root.TryGetProperty("type", out var typeElement) || typeElement.ValueKind != JsonValueKind.String)
-                return;
+            // Determine event type: prefer "type" field, fall back to "call" field,
+            // then try "event" field (common in some OverlayPlugin builds).
+            string? type = null;
+            if (root.TryGetProperty("type", out var typeElement) && typeElement.ValueKind == JsonValueKind.String)
+                type = typeElement.GetString();
+            else if (root.TryGetProperty("call", out var callElement) && callElement.ValueKind == JsonValueKind.String)
+                type = callElement.GetString();
+            else if (root.TryGetProperty("event", out var eventElement) && eventElement.ValueKind == JsonValueKind.String)
+                type = eventElement.GetString();
 
-            var type = typeElement.GetString();
             if (string.IsNullOrEmpty(type))
+            {
+                // No identifiable type field — check if this looks like CombatData anyway
+                // by looking for Encounter/Combatant fields directly.
+                if (LooksLikeCombatData(root))
+                {
+                    HandleCombatData(root);
+                    return;
+                }
                 return;
+            }
 
             // Log each new message type at INFO level once so user can see what's flowing
             if (seenTypes.Add(type))
@@ -271,12 +304,16 @@ public sealed class WebSocketService : IDisposable
 
                 case "ChangeZone":
                 case "onZoneChangedEvent":
-                    if (root.TryGetProperty("zoneName", out var zoneEl) && zoneEl.ValueKind == JsonValueKind.String)
-                        CurrentZone = zoneEl.GetString() ?? string.Empty;
-                    else if (root.TryGetProperty("zoneID", out var zoneIdEl))
-                        CurrentZone = $"Zone {zoneIdEl}";
-                    log.Information($"[CactBridge] Zone changed: {CurrentZone}");
+                    var zoneId = 0;
+                    var zoneName = string.Empty;
+                    if (root.TryGetProperty("zoneID", out var zoneIdProp))
+                        zoneId = zoneIdProp.GetInt32();
+                    if (root.TryGetProperty("zoneName", out var zoneNameProp) && zoneNameProp.ValueKind == JsonValueKind.String)
+                        zoneName = zoneNameProp.GetString() ?? string.Empty;
+                    CurrentZone = !string.IsNullOrEmpty(zoneName) ? zoneName : $"Zone {zoneId}";
+                    log.Information($"[CactBridge] Zone changed: {CurrentZone} (ID={zoneId})");
                     ClearTimelineEntries();
+                    OnZoneChanged?.Invoke(zoneId, zoneName);
                     break;
 
                 case "LogLine":
@@ -327,6 +364,13 @@ public sealed class WebSocketService : IDisposable
                 case "CombatData":
                     HandleCombatData(root);
                     break;
+
+                // OverlayPlugin sometimes wraps CombatData inside a "send" or "broadcast"
+                // envelope with the actual type in msgtype / msgType / msg_type.
+                case "send":
+                case "broadcast":
+                    HandleWrappedCombatData(root);
+                    break;
             }
         }
         catch (JsonException ex)
@@ -363,6 +407,9 @@ public sealed class WebSocketService : IDisposable
     private void HandleActLogLine(string line)
     {
         if (string.IsNullOrWhiteSpace(line)) return;
+
+        // Forward raw log line to subscribers (e.g. headless browser timeline)
+        OnRawLogLine?.Invoke(line);
 
         var parts = line.Split('|');
         if (parts.Length < 2) return;
@@ -474,7 +521,7 @@ public sealed class WebSocketService : IDisposable
 
             if (existing != null)
             {
-                existing.TimeRemaining = timeRemaining;
+                existing.InitialTimeRemaining = timeRemaining;
                 existing.ReceivedAt = DateTime.UtcNow;
             }
             else
@@ -482,7 +529,7 @@ public sealed class WebSocketService : IDisposable
                 timelineEntries.Add(new TimelineEntry
                 {
                     Text = text,
-                    TimeRemaining = timeRemaining,
+                    InitialTimeRemaining = timeRemaining,
                     ReceivedAt = DateTime.UtcNow,
                 });
             }
@@ -496,10 +543,61 @@ public sealed class WebSocketService : IDisposable
     }
 
     /// <summary>
+    /// Process a broadcast from the headless browser page (received via the
+    /// native PuppeteerSharp bridge, bypassing the OverlayPlugin WebSocket).
+    /// The JSON string should match the shape produced by the relay JS:
+    /// <c>{ type, text, time?, duration? }</c>.
+    /// </summary>
+    public void HandlePageBroadcast(string json)
+    {
+        try
+        {
+            using var doc = JsonDocument.Parse(json);
+            var payload = doc.RootElement;
+
+            // Detect timeline entries by type prefix or "time" field
+            if (TryGetString(payload, "type", out var typeStr))
+            {
+                var typeLower = typeStr.ToLowerInvariant();
+                if (typeLower is "timeline" or "timelineentry" or "timeline-entry")
+                {
+                    HandleTimelineEntry(payload);
+                    return;
+                }
+            }
+
+            if (payload.TryGetProperty("time", out var timeProp) && timeProp.ValueKind == JsonValueKind.Number)
+            {
+                HandleTimelineEntry(payload);
+                return;
+            }
+
+            // Standard alert shape: { type: "alarm"|"alert"|"info", text: "..." }
+            if (TryGetString(payload, "text", out var baseText) && !string.IsNullOrWhiteSpace(baseText))
+            {
+                var rawType = TryGetString(payload, "type", out var typeText) ? typeText : "info";
+                var alertType = ParseAlertType(rawType);
+                var duration = TryGetFloat(payload, "duration", out var parsedDuration)
+                    ? parsedDuration
+                    : DefaultDuration(alertType);
+                EnqueueAlert(baseText.Trim(), alertType, duration);
+            }
+        }
+        catch (Exception ex)
+        {
+            log.Verbose($"[CactBridge] Page broadcast parse error: {ex.Message}");
+        }
+    }
+
+    /// <summary>
     /// Processes a <c>CombatData</c> event from OverlayPlugin / ACT.
     /// Expected shape:
     /// <code>
     /// { "type":"CombatData", "encounter":{...}, "combatants":[...] }
+    /// </code>
+    /// or OverlayPlugin's native format:
+    /// <code>
+    /// { "type":"CombatData", "Encounter":{...}, "Combatant":[...] }
     /// </code>
     /// </summary>
     private void HandleCombatData(JsonElement root)
@@ -509,17 +607,19 @@ public sealed class WebSocketService : IDisposable
             EncounterInfo? encounter = null;
             List<CombatantInfo>? combatantsList = null;
 
-            // Parse encounter
+            // Try both lowercase (CactBridge internal) and uppercase (OverlayPlugin native) field names.
             if (root.TryGetProperty("encounter", out var encEl) && encEl.ValueKind == JsonValueKind.Object)
-            {
-                encounter = JsonSerializer.Deserialize<EncounterInfo>(encEl.GetRawText());
-            }
+                encounter = DeserializeCombatEncounter(encEl.GetRawText());
+            else if (root.TryGetProperty("Encounter", out encEl) && encEl.ValueKind == JsonValueKind.Object)
+                encounter = DeserializeCombatEncounter(encEl.GetRawText());
 
-            // Parse combatants array
+            // OverlayPlugin sends combatants under "Combatant" (singular, uppercase)
             if (root.TryGetProperty("combatants", out var comEl) && comEl.ValueKind == JsonValueKind.Array)
-            {
-                combatantsList = JsonSerializer.Deserialize<List<CombatantInfo>>(comEl.GetRawText());
-            }
+                combatantsList = DeserializeCombatants(comEl.GetRawText());
+            else if (root.TryGetProperty("Combatant", out comEl) && comEl.ValueKind == JsonValueKind.Array)
+                combatantsList = DeserializeCombatants(comEl.GetRawText());
+            else if (root.TryGetProperty("Combatants", out comEl) && comEl.ValueKind == JsonValueKind.Array)
+                combatantsList = DeserializeCombatants(comEl.GetRawText());
 
             lock (combatLock)
             {
@@ -536,6 +636,73 @@ public sealed class WebSocketService : IDisposable
         {
             log.Warning($"[CactBridge] Failed to parse CombatData: {ex.Message}");
         }
+    }
+
+    /// <summary>
+    /// Handles CombatData wrapped inside a "send"/"broadcast" envelope:
+    /// <c>{ type:"send", msgtype:"CombatData", msg:{ Encounter:{...}, Combatant:[...] } }</c>
+    /// or <c>{ type:"send", msgtype:"CombatData", msg:{ encounter:{...}, combatants:[...] } }</c>
+    /// </summary>
+    private void HandleWrappedCombatData(JsonElement root)
+    {
+        // Check msgtype / msgType / msg_type for "CombatData"
+        string? msgType = null;
+        if (TryGetString(root, "msgtype", out var mt)) msgType = mt;
+        else if (TryGetString(root, "msgType", out mt)) msgType = mt;
+        else if (TryGetString(root, "msg_type", out mt)) msgType = mt;
+
+        if (msgType == null || !msgType.Contains("combat", StringComparison.OrdinalIgnoreCase))
+        {
+            // Not a CombatData wrapper — check if the payload itself looks like combat data
+            if (root.TryGetProperty("msg", out var msgEl) && msgEl.ValueKind == JsonValueKind.Object)
+            {
+                if (LooksLikeCombatData(msgEl))
+                {
+                    HandleCombatData(msgEl);
+                    return;
+                }
+            }
+            return;
+        }
+
+        // Extract the inner payload from "msg" field
+        if (!root.TryGetProperty("msg", out var payload) || payload.ValueKind != JsonValueKind.Object)
+            return;
+
+        HandleCombatData(payload);
+    }
+
+    /// <summary>
+    /// Heuristic check: does this JSON object look like it contains combat data?
+    /// Looks for Encounter/encounter or Combatant/combatant/Combatants fields.
+    /// </summary>
+    private static bool LooksLikeCombatData(JsonElement el)
+    {
+        if (el.ValueKind != JsonValueKind.Object) return false;
+        foreach (var key in new[] { "Encounter", "encounter", "Combatant", "combatant", "Combatants", "combatants" })
+        {
+            if (el.TryGetProperty(key, out _))
+                return true;
+        }
+        return false;
+    }
+
+    /// <summary>
+    /// Deserializes an EncounterInfo with options tolerant of extra fields.
+    /// </summary>
+    private static EncounterInfo? DeserializeCombatEncounter(string rawJson)
+    {
+        var options = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
+        return JsonSerializer.Deserialize<EncounterInfo>(rawJson, options);
+    }
+
+    /// <summary>
+    /// Deserializes a list of CombatantInfo with options tolerant of extra fields and casing.
+    /// </summary>
+    private static List<CombatantInfo>? DeserializeCombatants(string rawJson)
+    {
+        var options = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
+        return JsonSerializer.Deserialize<List<CombatantInfo>>(rawJson, options);
     }
 
     private void AddNamedAlert(JsonElement payload, string propertyName, AlertType type, float defaultDuration)
