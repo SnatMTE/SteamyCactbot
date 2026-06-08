@@ -1,4 +1,4 @@
-# Steamy Cactbot
+# CactBridge
 
 A [Dalamud](https://github.com/goatcorp/Dalamud) plugin that integrates [Cactbot](https://github.com/OverlayPlugin/cactbot) into Final Fantasy XIV.
 
@@ -34,7 +34,7 @@ This plugin will **not** be submitted to the official Dalamud plugin repository.
 
 To install it, add the following URL to Dalamud's settings under external plugin repositories:
 
-- `https://snatmte.github.io/SteamyCactbot/plugin.json`
+- `https://snatmte.github.io/CactBridge/plugin.json`
 
 ## Disclaimer
 

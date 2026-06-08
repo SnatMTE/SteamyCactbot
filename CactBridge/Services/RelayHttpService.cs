@@ -8,7 +8,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Dalamud.Plugin.Services;
 
-namespace CactbotUI.Services;
+namespace CactBridge.Services;
 
 /// <summary>
 /// Tiny local HTTP server (plain TCP, no admin rights required) that acts as
@@ -63,7 +63,7 @@ public sealed class RelayHttpService : IDisposable
                 listener.Start();
                 Port = port;
                 _ = Task.Run(() => AcceptLoopAsync(cts.Token));
-                log.Information($"[CactbotPlugin] Relay HTTP on {OverlayUrl}");
+                log.Information($"[CactBridge] Relay HTTP on {OverlayUrl}");
                 return;
             }
             catch (SocketException)
@@ -72,7 +72,7 @@ public sealed class RelayHttpService : IDisposable
                 listener = null;
             }
         }
-        log.Warning("[CactbotPlugin] Relay HTTP server: no port available.");
+        log.Warning("[CactBridge] Relay HTTP server: no port available.");
     }
 
     private async Task AcceptLoopAsync(CancellationToken ct)
@@ -87,7 +87,7 @@ public sealed class RelayHttpService : IDisposable
             catch when (ct.IsCancellationRequested) { break; }
             catch (Exception ex)
             {
-                log.Debug($"[CactbotPlugin] HTTP accept: {ex.Message}");
+                log.Debug($"[CactBridge] HTTP accept: {ex.Message}");
             }
         }
     }
@@ -153,7 +153,7 @@ public sealed class RelayHttpService : IDisposable
         catch when (ct.IsCancellationRequested) { }
         catch (Exception ex)
         {
-            log.Debug($"[CactbotPlugin] HTTP handler: {ex.Message}");
+            log.Debug($"[CactBridge] HTTP handler: {ex.Message}");
         }
         finally
         {
@@ -174,7 +174,7 @@ public sealed class RelayHttpService : IDisposable
                 query = DefaultQuery;
 
             var remoteUrl = RemoteHtml + query;
-            log.Debug($"[CactbotPlugin] Fetching {remoteUrl}");
+            log.Debug($"[CactBridge] Fetching {remoteUrl}");
 
             var html = await HttpClient.GetStringAsync(remoteUrl, ct);
 
@@ -187,7 +187,7 @@ public sealed class RelayHttpService : IDisposable
             // Inject relay script inline from the JS file
             var relayJs = File.Exists(jsFilePath)
                 ? await File.ReadAllTextAsync(jsFilePath, ct)
-                : "console.warn('[CactbotUI] raidboss-user.js not found')";
+                : "console.warn('[CactBridge] raidboss-user.js not found')";
             var scriptTag = $"\n<script>\n{relayJs}\n</script>\n";
             html = InjectBeforeMarker(html, "</body>", scriptTag)
                 ?? (html + scriptTag);
@@ -195,12 +195,12 @@ public sealed class RelayHttpService : IDisposable
             var body = Encoding.UTF8.GetBytes(html);
             await SendHeaders(stream, 200, "OK", "text/html; charset=utf-8", body.Length, ct);
             await stream.WriteAsync(body, ct);
-            log.Information("[CactbotPlugin] Served proxied Cactbot page");
+            log.Information("[CactBridge] Served proxied Cactbot page");
         }
         catch (Exception ex)
         {
-            log.Warning($"[CactbotPlugin] Proxy fetch failed: {ex.Message}");
-            var msg = Encoding.UTF8.GetBytes($"<html><body>CactbotUI: failed to fetch Cactbot page.<br>{ex.Message}<br>Check that IINACT/OverlayPlugin is running.</body></html>");
+            log.Warning($"[CactBridge] Proxy fetch failed: {ex.Message}");
+            var msg = Encoding.UTF8.GetBytes($"<html><body>CactBridge: failed to fetch Cactbot page.<br>{ex.Message}<br>Check that IINACT/OverlayPlugin is running.</body></html>");
             await SendHeaders(stream, 502, "Bad Gateway", "text/html; charset=utf-8", msg.Length, ct);
             await stream.WriteAsync(msg, ct);
         }

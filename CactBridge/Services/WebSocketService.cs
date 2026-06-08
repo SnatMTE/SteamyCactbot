@@ -8,9 +8,9 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Dalamud.Plugin.Services;
-using CactbotUI.Models;
+using CactBridge.Models;
 
-namespace CactbotUI.Services;
+namespace CactBridge.Services;
 
 /// <summary>
 /// Manages a persistent, auto-reconnecting WebSocket connection to the
@@ -130,18 +130,18 @@ public sealed class WebSocketService : IDisposable
             }
             catch (Exception ex)
             {
-                log.Warning($"[CactbotPlugin] WebSocket error: {ex.Message}");
+                log.Warning($"[CactBridge] WebSocket error: {ex.Message}");
             }
 
             if (!token.IsCancellationRequested)
             {
-                log.Debug($"[CactbotPlugin] Reconnecting in {ReconnectDelayMs / 1000}s…");
+                log.Debug($"[CactBridge] Reconnecting in {ReconnectDelayMs / 1000}s…");
                 try { await Task.Delay(ReconnectDelayMs, token); }
                 catch (OperationCanceledException) { break; }
             }
         }
 
-        log.Information("[CactbotPlugin] WebSocket loop exited.");
+        log.Information("[CactBridge] WebSocket loop exited.");
     }
 
     // -----------------------------------------------------------------------
@@ -158,9 +158,9 @@ public sealed class WebSocketService : IDisposable
         socket?.Dispose();
         socket = new ClientWebSocket();
 
-        log.Information($"[CactbotPlugin] Connecting to {WsUrl}…");
+        log.Information($"[CactBridge] Connecting to {WsUrl}…");
         await socket.ConnectAsync(new Uri(WsUrl), token);
-        log.Information("[CactbotPlugin] Connected to OverlayPlugin WebSocket.");
+        log.Information("[CactBridge] Connected to OverlayPlugin WebSocket.");
 
         // ------------------------------------------------------------------
         // Subscribe to desired events
@@ -190,7 +190,7 @@ public sealed class WebSocketService : IDisposable
 
                 if (result.MessageType == WebSocketMessageType.Close)
                 {
-                    log.Information("[CactbotPlugin] Server requested connection close.");
+                    log.Information("[CactBridge] Server requested connection close.");
                     // Respond with a close frame and exit
                     await socket.CloseAsync(
                         WebSocketCloseStatus.NormalClosure,
@@ -232,7 +232,7 @@ public sealed class WebSocketService : IDisposable
 
             // Log each new message type at INFO level once so user can see what's flowing
             if (seenTypes.Add(type))
-                log.Information($"[CactbotPlugin] First message of type: {type}");
+                log.Information($"[CactBridge] First message of type: {type}");
 
             switch (type)
             {
@@ -247,7 +247,7 @@ public sealed class WebSocketService : IDisposable
                         CurrentZone = zoneEl.GetString() ?? string.Empty;
                     else if (root.TryGetProperty("zoneID", out var zoneIdEl))
                         CurrentZone = $"Zone {zoneIdEl}";
-                    log.Information($"[CactbotPlugin] Zone changed: {CurrentZone}");
+                    log.Information($"[CactBridge] Zone changed: {CurrentZone}");
                     break;
 
                 case "LogLine":
@@ -298,11 +298,11 @@ public sealed class WebSocketService : IDisposable
         }
         catch (JsonException ex)
         {
-            log.Verbose($"[CactbotPlugin] JSON parse failed: {ex.Message}");
+            log.Verbose($"[CactBridge] JSON parse failed: {ex.Message}");
         }
         catch (Exception ex)
         {
-            log.Warning($"[CactbotPlugin] Unexpected error in HandleMessage: {ex.Message}");
+            log.Warning($"[CactBridge] Unexpected error in HandleMessage: {ex.Message}");
         }
     }
 

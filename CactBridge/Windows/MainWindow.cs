@@ -3,14 +3,14 @@ using System.Numerics;
 using Dalamud.Bindings.ImGui;
 using Dalamud.Interface.Windowing;
 
-namespace CactbotUI.Windows;
+namespace CactBridge.Windows;
 
 public class MainWindow : Window, IDisposable
 {
     private readonly Plugin plugin;
 
     public MainWindow(Plugin plugin)
-        : base("Cactbot Overlay###Main", ImGuiWindowFlags.NoScrollbar | ImGuiWindowFlags.NoScrollWithMouse)
+        : base("CactBridge###Main", ImGuiWindowFlags.NoScrollbar | ImGuiWindowFlags.NoScrollWithMouse)
     {
         SizeConstraints = new WindowSizeConstraints
         {

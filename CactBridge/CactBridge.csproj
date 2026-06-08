@@ -4,15 +4,15 @@
     <Version>0.0.2.4</Version>
     <AssemblyVersion>0.0.2.4</AssemblyVersion>
     <FileVersion>0.0.2.4</FileVersion>
-    <PackageProjectUrl>https://github.com/Snat/CactbotUI</PackageProjectUrl>
+    <PackageProjectUrl>https://github.com/SnatMTE/CactBridge</PackageProjectUrl>
     <PackageLicenseExpression>AGPL-3.0-or-later</PackageLicenseExpression>
     <IsPackable>false</IsPackable>
     <TargetFramework>net10.0-windows</TargetFramework>
-    <AssemblyName>CactbotUI</AssemblyName>
-    <RootNamespace>CactbotUI</RootNamespace>
+    <AssemblyName>CactBridge</AssemblyName>
+    <RootNamespace>CactBridge</RootNamespace>
     <LangVersion>latest</LangVersion>
     <!-- DalamudPackager manifest fields -->
-    <Name>CactbotUI</Name>
+    <Name>CactBridge</Name>
     <Author>Snat</Author>
     <Punchline>Cactbot overlay integration for FFXIV</Punchline>
     <Description>A Cactbot UI plugin that displays triggers, timelines, and raid buffs overlay in FFXIV. Use /cactbot to open settings.</Description>

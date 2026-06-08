@@ -2,7 +2,7 @@
 using System;
 using System.Numerics;
 
-namespace CactbotUI;
+namespace CactBridge;
 
 public enum AlertFontPreset
 {

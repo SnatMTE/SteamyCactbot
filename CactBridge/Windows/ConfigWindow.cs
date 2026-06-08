@@ -3,9 +3,9 @@ using System.Numerics;
 using System.Diagnostics;
 using Dalamud.Bindings.ImGui;
 using Dalamud.Interface.Windowing;
-using CactbotUI.Services;
+using CactBridge.Services;
 
-namespace CactbotUI.Windows;
+namespace CactBridge.Windows;
 
 /// <summary>
 /// Configuration window for the Cactbot alert overlay.
@@ -32,7 +32,7 @@ public class ConfigWindow : Window, IDisposable
 
     // Constant window ID - the title can change without breaking ImGui identity
     public ConfigWindow(Plugin plugin, WebSocketService wsService, OverlayWindow overlayWindow, RelayHttpService relayService, BrowserService browserService)
-        : base("Cactbot Overlay Settings###CactbotConfig")
+        : base("CactBridge Settings###CactBridgeConfig")
     {
         Flags = ImGuiWindowFlags.NoResize    |
                 ImGuiWindowFlags.NoCollapse;
@@ -138,7 +138,7 @@ public class ConfigWindow : Window, IDisposable
                 // Move mode
                 // ----------------------------------------------------------
                 var moveMode = overlayWindow.IsMoveMode;
-                if (ImGui.Checkbox("Move mode (/cactbot)", ref moveMode))
+                if (ImGui.Checkbox("Move mode (/cactbridge)", ref moveMode))
                 {
                     overlayWindow.SetMoveMode(moveMode);
                     overlayWindow.IsOpen = true;

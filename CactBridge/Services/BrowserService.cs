@@ -6,7 +6,7 @@ using System.Threading.Tasks;
 using Dalamud.Plugin.Services;
 using PuppeteerSharp;
 
-namespace CactbotUI.Services;
+namespace CactBridge.Services;
 
 /// <summary>
 /// Manages an embedded headless Chromium browser that loads the Cactbot
@@ -92,7 +92,7 @@ public sealed class BrowserService : IDisposable
             // 1. Ensure Chromium is present (downloads ~150 MB on first run)
             // ------------------------------------------------------------------
             State = BrowserState.Downloading;
-            log.Information("[CactbotPlugin] Checking embedded Chromium…");
+            log.Information("[CactBridge] Checking embedded Chromium…");
 
             var fetcher = new BrowserFetcher(new BrowserFetcherOptions
             {
@@ -123,10 +123,10 @@ public sealed class BrowserService : IDisposable
                 },
             });
 
-            log.Information("[CactbotPlugin] Ensuring Chromium is present (~150 MB, downloaded once)…");
+            log.Information("[CactBridge] Ensuring Chromium is present (~150 MB, downloaded once)…");
             var revisionInfo = await fetcher.DownloadAsync();
             var executablePath = revisionInfo.GetExecutablePath();
-            log.Information($"[CactbotPlugin] Chromium ready: {executablePath}");
+            log.Information($"[CactBridge] Chromium ready: {executablePath}");
 
             if (ct.IsCancellationRequested) return;
 
@@ -157,7 +157,7 @@ public sealed class BrowserService : IDisposable
             await page.GoToAsync(overlayUrl);
 
             State = BrowserState.Running;
-            log.Information($"[CactbotPlugin] Embedded Chromium running → {overlayUrl}");
+            log.Information($"[CactBridge] Embedded Chromium running → {overlayUrl}");
         }
         catch (OperationCanceledException)
         {
@@ -166,7 +166,7 @@ public sealed class BrowserService : IDisposable
         catch (Exception ex)
         {
             State = BrowserState.Error;
-            log.Error($"[CactbotPlugin] BrowserService error: {ex}");
+            log.Error($"[CactBridge] BrowserService error: {ex}");
         }
     }
 
@@ -197,6 +197,6 @@ public sealed class BrowserService : IDisposable
         try { browser?.CloseAsync().GetAwaiter().GetResult(); } catch { }
         browser?.Dispose();
         cts.Dispose();
-        log.Debug("[CactbotPlugin] BrowserService disposed.");
+        log.Debug("[CactBridge] BrowserService disposed.");
     }
 }

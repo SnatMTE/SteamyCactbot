@@ -5,10 +5,10 @@ using Dalamud.Bindings.ImGui;
 using Dalamud.Interface.GameFonts;
 using Dalamud.Interface.ManagedFontAtlas;
 using Dalamud.Interface.Windowing;
-using CactbotUI.Models;
-using CactbotUI.Services;
+using CactBridge.Models;
+using CactBridge.Services;
 
-namespace CactbotUI.Windows;
+namespace CactBridge.Windows;
 
 /// <summary>
 /// Transparent, always-on-top overlay window that renders cactbot raidboss
@@ -59,7 +59,7 @@ public class OverlayWindow : Window, IDisposable
     // -----------------------------------------------------------------------
 
     public OverlayWindow(Plugin plugin, WebSocketService wsService)
-        : base("##CactbotOverlay",
+        : base("##CactBridgeOverlay",
                ImGuiWindowFlags.NoTitleBar        |
                ImGuiWindowFlags.NoScrollbar       |
                ImGuiWindowFlags.NoScrollWithMouse |
@@ -69,7 +69,7 @@ public class OverlayWindow : Window, IDisposable
         this.plugin    = plugin;
         this.wsService = wsService;
 
-        // Overlay is always active; /cactbot controls move mode only.
+        // Overlay is always active; /cactbridge controls move mode only.
         IsOpen = true;
     }
 
@@ -124,7 +124,7 @@ public class OverlayWindow : Window, IDisposable
         // Keep the overlay plain while optionally showing a subtle drag surface.
         ImGui.SetNextWindowBgAlpha(moveMode ? 0.15f : 0.00f);
 
-        // Move mode can be toggled with /cactbot. When off, keep it fixed and click-through.
+        // Move mode can be toggled with /cactbridge. When off, keep it fixed and click-through.
         if (!moveMode || cfg.LockOverlayPosition)
             Flags |= ImGuiWindowFlags.NoMove;
         else
@@ -201,7 +201,7 @@ public class OverlayWindow : Window, IDisposable
             if (moveMode)
             {
                 ImGui.SetCursorPos(new Vector2(BoxPadding, BoxPadding));
-                ImGui.TextColored(new Vector4(0.85f, 0.85f, 0.85f, 0.75f), "Move mode: drag to reposition. Use /cactbot to finish.");
+                ImGui.TextColored(new Vector4(0.85f, 0.85f, 0.85f, 0.75f), "Move mode: drag to reposition. Use /cactbridge to finish.");
             }
         }
         else

@@ -1,7 +1,7 @@
 using System;
 using System.Text.Json.Serialization;
 
-namespace CactbotUI.Models;
+namespace CactBridge.Models;
 
 // ---------------------------------------------------------------------------
 // Domain model
@@ -17,8 +17,8 @@ public enum AlertType
 
 /// <summary>
 /// A processed raidboss alert ready for display on screen.
-/// Instances are produced by <see cref="CactbotUI.Services.WebSocketService"/>
-/// and consumed each frame by <see cref="CactbotUI.Windows.OverlayWindow"/>.
+/// Instances are produced by <see cref="CactBridge.Services.WebSocketService"/>
+/// and consumed each frame by <see cref="CactBridge.Windows.OverlayWindow"/>.
 /// </summary>
 public class CactbotAlert
 {

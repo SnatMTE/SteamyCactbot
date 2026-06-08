@@ -1,9 +1,9 @@
 'use strict';
 
 // ============================================================
-// CactbotUI relay - broadcasts every Cactbot alarm/alert/info
+// CactBridge relay - broadcasts every Cactbot alarm/alert/info
 // text back via OverlayPlugin BroadcastMessage so the
-// CactbotUI Dalamud plugin can display them in-game.
+// CactBridge Dalamud plugin can display them in-game.
 //
 // SETUP:
 //   1. Copy this file to your Cactbot user config directory.
@@ -15,7 +15,7 @@
 //      on startup - that confirms the file is working.
 // ============================================================
 
-(function cactbotUIRelay() {
+(function cactbridgeRelay() {
 
   // ----- helpers ------------------------------------------------
 

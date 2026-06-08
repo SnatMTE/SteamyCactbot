@@ -3,11 +3,11 @@ using Dalamud.IoC;
 using Dalamud.Plugin;
 using Dalamud.Interface.Windowing;
 using Dalamud.Plugin.Services;
-using CactbotUI.Services;
+using CactBridge.Services;
 using System.Diagnostics;
-using CactbotUI.Windows;
+using CactBridge.Windows;
 
-namespace CactbotUI;
+namespace CactBridge;
 
 /// <summary>
 /// Entry point for the Cactbot Alert Overlay plugin.
@@ -35,13 +35,13 @@ public sealed class Plugin : IDalamudPlugin
     [PluginService] internal static IChatGui                ChatGui          { get; private set; } = null!;
     [PluginService] internal static IFramework              Framework        { get; private set; } = null!;
 
-    // /cactbot       - toggle move mode
-    // /cactbot config - open settings
-    private const string CommandName = "/cactbot";
+    // /cactbridge       - toggle move mode
+    // /cactbridge config - open settings
+    private const string CommandName = "/cactbridge";
 
     public Configuration Configuration { get; init; }
 
-    public readonly WindowSystem WindowSystem = new("CactbotPlugin");
+    public readonly WindowSystem WindowSystem = new("CactBridge");
 
     // -----------------------------------------------------------------------
     // Plugin-owned objects
@@ -91,7 +91,7 @@ public sealed class Plugin : IDalamudPlugin
         // Register slash command
         CommandManager.AddHandler(CommandName, new CommandInfo(OnCommand)
         {
-            HelpMessage = "Toggle move mode for the Cactbot text anchor. '/cactbot config' opens settings."
+            HelpMessage = "Toggle move mode for the Cactbot text anchor. '/cactbridge config' opens settings."
         });
 
         // Hook into Dalamud's UI draw pipeline
@@ -100,7 +100,7 @@ public sealed class Plugin : IDalamudPlugin
         PluginInterface.UiBuilder.OpenMainUi   += ToggleMainUi;
         Framework.Update                       += OnFrameworkUpdate;
 
-        Log.Information("[CactbotPlugin] Plugin loaded.");
+        Log.Information("[CactBridge] Plugin loaded.");
     }
 
     // -----------------------------------------------------------------------
@@ -144,7 +144,7 @@ public sealed class Plugin : IDalamudPlugin
 
         CommandManager.RemoveHandler(CommandName);
 
-        Log.Information("[CactbotPlugin] Plugin unloaded.");
+        Log.Information("[CactBridge] Plugin unloaded.");
     }
 
     // -----------------------------------------------------------------------
