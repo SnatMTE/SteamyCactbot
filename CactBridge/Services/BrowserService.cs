@@ -13,9 +13,11 @@ namespace CactBridge.Services;
 /// raidboss overlay in the background. Supports a primary (alerts) page
 /// and an optional secondary (timeline) page sharing the same browser process.
 ///
-/// On first use, Chromium is downloaded once to <c>{pluginDir}/chromium/</c>
-/// (~150 MB).  Subsequent starts reuse the cached copy.  No external browser
-/// installation is required - works on Windows and Steam Deck (Proton/Wine).
+/// On first use, Chromium is downloaded once to <c>%APPDATA%/CactBridge/chromium/</c>
+/// (~150 MB).  Subsequent starts reuse the cached copy.  The persistent
+/// location survives Dalamud plugin updates that wipe the plugin directory.
+/// No external browser installation is required - works on Windows and Steam
+/// Deck (Proton/Wine).
 /// </summary>
 public sealed class BrowserService : IDisposable
 {
@@ -72,7 +74,9 @@ public sealed class BrowserService : IDisposable
         this.log          = log;
         this.overlayUrl   = overlayUrl;
         this.timelineUrl  = timelineUrl;
-        this.chromiumPath = Path.Combine(pluginDirectory, "chromium");
+        // Store Chromium in %APPDATA%/CactBridge so it survives plugin updates
+        var appData = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
+        this.chromiumPath = Path.Combine(appData, "CactBridge", "chromium");
         _ = Task.Run(StartAsync);
     }
 
