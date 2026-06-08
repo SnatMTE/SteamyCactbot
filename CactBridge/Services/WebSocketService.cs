@@ -30,24 +30,21 @@ public sealed class WebSocketService : IDisposable
     // Configuration
     // -----------------------------------------------------------------------
 
+    // Match the proven WebSocket URL used by the working web overlay (overlay.js)
+    // at https://snatmte.github.io/FFXIV-Overlay/. The overlay's autoConnect
+    // tries root first, then /ws, /socket, etc. The working connection uses /ws.
     private const string WsUrl                 = "ws://127.0.0.1:10501/ws";
     private const int    MaxStoredAlerts       = 20;
     private const int    MaxStoredTimelineEntries = 50;
     private const int    ReconnectDelayMs      = 5_000;
 
-    // Events confirmed to be registered in IINACT OverlayPlugin 0.19.x.
-    // "onBroadcastMessage" and "onInCombat" do NOT exist in this build -
-    // onBroadcastMessage only fires when a browser-based cactbot overlay is
-    // running and broadcasting; IINACT's builtin Cactbot event source does not
-    // generate it because it does not run the raidboss JS layer.
+    // Subscribed events - must match exactly what the web overlay (overlay.js)
+    // uses.  The overlay only subscribes to LogLine and CombatData; including
+    // additional events (e.g. "ChangeZone") may cause some OverlayPlugin builds
+    // to reject the entire subscribe message.
     private static readonly string[] SubscribedEvents =
     [
-        "ChangeZone",
         "LogLine",
-        "ImportedLogLines",
-        "BroadcastMessage",
-        "onZoneChangedEvent",
-        "onLogEvent",
         "CombatData"
     ];
 
@@ -68,6 +65,8 @@ public sealed class WebSocketService : IDisposable
     private readonly ConcurrentQueue<string> chatQueue   = new();
     private readonly System.Collections.Generic.HashSet<string> seenTypes = new();
     private int              logLineCount;
+    private int              rawMessageCount;     // Total messages received since connect
+    private const int        VerboseLogLimit = 10; // Log first N raw messages in full
 
     private ClientWebSocket? socket;
     private bool             disposed;
@@ -90,6 +89,9 @@ public sealed class WebSocketService : IDisposable
 
     /// <summary>Total number of <c>LogLine</c> WebSocket events received since connecting. Use this to verify data is flowing.</summary>
     public int LogLineCount => logLineCount;
+
+    /// <summary>Total number of raw WebSocket messages received since connecting. Useful for diagnostics.</summary>
+    public int RawMessageCount => rawMessageCount;
 
     // -----------------------------------------------------------------------
     // Constructor / startup
@@ -197,27 +199,41 @@ public sealed class WebSocketService : IDisposable
         log.Information("[CactBridge] Connected to OverlayPlugin WebSocket.");
 
         // ------------------------------------------------------------------
-        // Subscribe to desired events
+        // Subscribe to desired events (with retries, matching overlay.js pattern)
         // ------------------------------------------------------------------
-        var subJson  = JsonSerializer.Serialize(new SubscribeRequest { Events = SubscribedEvents });
-        var subBytes = Encoding.UTF8.GetBytes(subJson);
-        await socket.SendAsync(
-            new ArraySegment<byte>(subBytes),
-            WebSocketMessageType.Text,
-            endOfMessage: true,
-            cancellationToken: token);
-
         // Some OverlayPlugin / ACT WS servers require an explicit "start"
         // after subscribing to begin forwarding CombatData events.
-        var startJson  = JsonSerializer.Serialize(new { call = "start" });
-        var startBytes = Encoding.UTF8.GetBytes(startJson);
-        await socket.SendAsync(
-            new ArraySegment<byte>(startBytes),
-            WebSocketMessageType.Text,
-            endOfMessage: true,
-            cancellationToken: token);
+        // Match the proven working overlay.js behaviour: send just { call:"start" }.
+        // Also retry subscribe+start a few times (overlay.js retries every 1s
+        // up to 10×; we do 3 quick attempts to keep startup snappy).
+        var subscribeAttempts = 0;
+        var maxSubscribeAttempts = 3;
+        while (subscribeAttempts < maxSubscribeAttempts && !token.IsCancellationRequested)
+        {
+            if (subscribeAttempts > 0)
+            {
+                // Small delay before retry
+                try { await Task.Delay(300, token); } catch (OperationCanceledException) { break; }
+            }
+            subscribeAttempts++;
 
-        log.Information("[CactBridge] Subscribed and sent start command.");
+            var subJson  = JsonSerializer.Serialize(new SubscribeRequest { Events = SubscribedEvents });
+            var subBytes = Encoding.UTF8.GetBytes(subJson);
+            await socket.SendAsync(
+                new ArraySegment<byte>(subBytes),
+                WebSocketMessageType.Text,
+                endOfMessage: true,
+                cancellationToken: token);
+
+            var startMsg = """{"call":"start"}""";
+            var startBytes = Encoding.UTF8.GetBytes(startMsg);
+            await socket.SendAsync(
+                new ArraySegment<byte>(startBytes),
+                WebSocketMessageType.Text,
+                endOfMessage: true,
+                cancellationToken: token);
+        }
+        log.Information($"[CactBridge] Subscribed and sent start (attempts={subscribeAttempts}).");
 
         // ------------------------------------------------------------------
         // Receive loop - reassemble fragmented frames before processing
@@ -264,10 +280,48 @@ public sealed class WebSocketService : IDisposable
     /// </summary>
     private void HandleMessage(string json)
     {
+        // Verbose logging of the first N messages to help diagnose format issues
+        var msgNum = Interlocked.Increment(ref rawMessageCount);
+        if (msgNum <= VerboseLogLimit)
+        {
+            var preview = json.Length > 300 ? json[..300] + "..." : json;
+            log.Information($"[CactBridge] Raw message #{msgNum}: {preview}");
+        }
+
         try
         {
             using var doc = JsonDocument.Parse(json);
             var root = doc.RootElement;
+
+            // CRITICAL: Check for combat data FIRST, before any type-based routing.
+            // This matches overlay.js behaviour — findCombatantsArray is called before
+            // any type/call/event field inspection. This ensures we catch CombatData
+            // regardless of what wrapper format OverlayPlugin uses.
+            // Check at root level and one level deep (data/msg wrappers).
+            if (LooksLikeCombatData(root))
+            {
+                HandleCombatData(root);
+                return;
+            }
+            foreach (var wrapperKey in new[] { "data", "msg", "CombatData" })
+            {
+                if (root.TryGetProperty(wrapperKey, out var inner) &&
+                    (inner.ValueKind == JsonValueKind.Object || inner.ValueKind == JsonValueKind.Array))
+                {
+                    if (LooksLikeCombatData(inner))
+                    {
+                        HandleCombatData(inner);
+                        return;
+                    }
+                }
+            }
+            // Also try recursive search for deeply nested combatants
+            if (FindCombatantsAnywhere(root, out var found))
+            {
+                log.Debug("[CactBridge] Found combatants in nested structure (pre-type check).");
+                HandleCombatData(found);
+                return;
+            }
 
             // Determine event type: prefer "type" field, fall back to "call" field,
             // then try "event" field (common in some OverlayPlugin builds).
@@ -281,13 +335,12 @@ public sealed class WebSocketService : IDisposable
 
             if (string.IsNullOrEmpty(type))
             {
-                // No identifiable type field — check if this looks like CombatData anyway
-                // by looking for Encounter/Combatant fields directly.
-                if (LooksLikeCombatData(root))
-                {
-                    HandleCombatData(root);
-                    return;
-                }
+                // No identifiable type field — the pre-type check above already
+                // looked for combat data. If we're here, it's truly unknown.
+                // Log first occurrence of each unrecognised message shape.
+                var preview = json.Length > 200 ? json[..200] + "..." : json;
+                if (seenTypes.Add(preview))
+                    log.Information($"[CactBridge] Unrecognised message (no type field): {preview}");
                 return;
             }
 
@@ -362,7 +415,27 @@ public sealed class WebSocketService : IDisposable
                     break;
 
                 case "CombatData":
-                    HandleCombatData(root);
+                    // Content may be at root level or nested inside "data" / "msg".
+                    if (LooksLikeCombatData(root))
+                    {
+                        HandleCombatData(root);
+                    }
+                    else
+                    {
+                        var unwrapped = false;
+                        foreach (var wrapperKey in new[] { "data", "msg" })
+                        {
+                            if (root.TryGetProperty(wrapperKey, out var inner) && inner.ValueKind == JsonValueKind.Object
+                                && LooksLikeCombatData(inner))
+                            {
+                                HandleCombatData(inner);
+                                unwrapped = true;
+                                break;
+                            }
+                        }
+                        if (!unwrapped)
+                            HandleCombatData(root);
+                    }
                     break;
 
                 // OverlayPlugin sometimes wraps CombatData inside a "send" or "broadcast"
@@ -604,38 +677,178 @@ public sealed class WebSocketService : IDisposable
     {
         try
         {
+            // Step 0: Unwrap nested "CombatData" field if present (matching
+            // overlay.js findCombatantsArray which does `if(data.CombatData) data = data.CombatData`).
+            // Some OverlayPlugin builds send: { "type":"CombatData", "CombatData":{ Encounter:{...}, Combatant:[...] } }
+            if (root.ValueKind == JsonValueKind.Object && root.TryGetProperty("CombatData", out var combatDataField))
+            {
+                if (combatDataField.ValueKind == JsonValueKind.Object)
+                {
+                    log.Verbose("[CactBridge] Unwrapped nested CombatData field.");
+                    root = combatDataField;
+                }
+            }
+
             EncounterInfo? encounter = null;
-            List<CombatantInfo>? combatantsList = null;
+            var combatantsList = new List<CombatantInfo>();
 
-            // Try both lowercase (CactBridge internal) and uppercase (OverlayPlugin native) field names.
-            if (root.TryGetProperty("encounter", out var encEl) && encEl.ValueKind == JsonValueKind.Object)
-                encounter = DeserializeCombatEncounter(encEl.GetRawText());
-            else if (root.TryGetProperty("Encounter", out encEl) && encEl.ValueKind == JsonValueKind.Object)
-                encounter = DeserializeCombatEncounter(encEl.GetRawText());
+            // Step 1: Try to extract encounter metadata (optional)
+            // OverlayPlugin sends this under "Encounter" (uppercase) or "encounter" (lowercase).
+            foreach (var key in new[] { "Encounter", "encounter" })
+            {
+                if (root.TryGetProperty(key, out var encEl) && encEl.ValueKind == JsonValueKind.Object)
+                {
+                    encounter = DeserializeCombatEncounter(encEl.GetRawText());
+                    if (encounter != null) break;
+                }
+            }
 
-            // OverlayPlugin sends combatants under "Combatant" (singular, uppercase)
-            if (root.TryGetProperty("combatants", out var comEl) && comEl.ValueKind == JsonValueKind.Array)
-                combatantsList = DeserializeCombatants(comEl.GetRawText());
-            else if (root.TryGetProperty("Combatant", out comEl) && comEl.ValueKind == JsonValueKind.Array)
-                combatantsList = DeserializeCombatants(comEl.GetRawText());
-            else if (root.TryGetProperty("Combatants", out comEl) && comEl.ValueKind == JsonValueKind.Array)
-                combatantsList = DeserializeCombatants(comEl.GetRawText());
+            // Step 2: Extract combatants — handle multiple formats the way
+            // the web overlay (overlay.js) does, matching its flexible approach.
+            // OverlayPlugin can send combatants as:
+            //   - "Combatant" / "Combatants" / "combatants" / "Players" / "Party"
+            //   - As an ARRAY or an OBJECT (dictionary keyed by player name)
+            //   - Or the root element itself is an array of combatant objects.
+            var combatantCandidates = new[] {
+                "Combatant", "combatant", "Combatants", "combatants",
+                "Players", "players", "Party", "party"
+            };
 
+            foreach (var key in combatantCandidates)
+            {
+                if (!root.TryGetProperty(key, out var comEl)) continue;
+
+                if (comEl.ValueKind == JsonValueKind.Array)
+                {
+                    var parsed = DeserializeCombatants(comEl.GetRawText());
+                    if (parsed != null && parsed.Count > 0)
+                    {
+                        combatantsList = parsed;
+                        break;
+                    }
+                }
+                else if (comEl.ValueKind == JsonValueKind.Object)
+                {
+                    // Object/dictionary — e.g. {"PlayerName": {...}, ...}
+                    // Convert to array by serialising the values.
+                    var entries = new List<CombatantInfo>();
+                    foreach (var prop in comEl.EnumerateObject())
+                    {
+                        if (prop.Value.ValueKind == JsonValueKind.Object)
+                        {
+                            var single = DeserializeCombatant(prop.Value.GetRawText());
+                            if (single != null) entries.Add(single);
+                        }
+                    }
+                    if (entries.Count > 0)
+                    {
+                        combatantsList = entries;
+                        break;
+                    }
+                }
+            }
+
+            // Step 3: If no combatant keys found, the root itself might be an
+            // array of combatant objects (rare but handled by overlay.js).
+            if (combatantsList.Count == 0 && root.ValueKind == JsonValueKind.Array)
+            {
+                var parsed = DeserializeCombatants(root.GetRawText());
+                if (parsed != null) combatantsList = parsed;
+            }
+
+            // Step 4: Store results
             lock (combatLock)
             {
                 if (encounter != null)
                     currentEncounter = encounter;
-                if (combatantsList != null)
+                if (combatantsList.Count > 0)
                     combatants = combatantsList;
             }
 
             if (encounter != null)
-                log.Debug($"[CactBridge] [CombatData] \"{encounter.Title}\" DPS={encounter.DPS:F0} ({combatantsList?.Count ?? 0} combatants)");
+                log.Information($"[CactBridge] [CombatData] \"{encounter.Title}\" encDPS={encounter.DPS:F0} ({combatantsList.Count} combatants)");
+            else if (combatantsList.Count > 0)
+                log.Information($"[CactBridge] [CombatData] {combatantsList.Count} combatants (no encounter info)");
+            else
+                log.Verbose("[CactBridge] [CombatData] Received but 0 combatants found.");
         }
         catch (Exception ex)
         {
             log.Warning($"[CactBridge] Failed to parse CombatData: {ex.Message}");
         }
+    }
+
+    /// <summary>
+    /// Recursively searches a JsonElement tree for combatant-like arrays or objects,
+    /// matching the approach used by overlay.js findCombatantsArray.
+    /// Returns true and sets <paramref name="found"/> to the nearest ancestor that
+    /// contains combatant data.
+    /// </summary>
+    private static bool FindCombatantsAnywhere(JsonElement el, out JsonElement found)
+    {
+        found = default;
+        if (el.ValueKind == JsonValueKind.Array)
+        {
+            // An array of objects — could be a combatant list.
+            if (el.GetArrayLength() > 0)
+            {
+                // Check if items look like combatants (have Name or DPS-like fields)
+                foreach (var item in el.EnumerateArray())
+                {
+                    if (item.ValueKind == JsonValueKind.Object)
+                    {
+                        foreach (var hint in new[] { "Name", "name", "Job", "job", "ENCDPS", "DPS", "Damage", "damage" })
+                        {
+                            if (item.TryGetProperty(hint, out _))
+                            {
+                                found = el;
+                                return true;
+                            }
+                        }
+                    }
+                }
+            }
+            return false;
+        }
+
+        if (el.ValueKind != JsonValueKind.Object) return false;
+
+        // Check if this object has a known combatant-container key
+        foreach (var key in new[] {
+            "Combatant", "combatant", "Combatants", "combatants",
+            "Players", "players", "Party", "party",
+            "CombatantList", "CombatantsList",
+            "Encounter", "encounter",
+            "CombatData" })
+        {
+            if (el.TryGetProperty(key, out var val))
+            {
+                if (val.ValueKind == JsonValueKind.Array || val.ValueKind == JsonValueKind.Object)
+                {
+                    // If the value itself is an array, it might be the combatant list itself
+                    if (val.ValueKind == JsonValueKind.Array)
+                    {
+                        found = el;
+                        return true;
+                    }
+                    // If the value is an object, it could be a dictionary or nested wrapper
+                    found = el;
+                    return true;
+                }
+            }
+        }
+
+        // Recurse into object properties
+        foreach (var prop in el.EnumerateObject())
+        {
+            if (FindCombatantsAnywhere(prop.Value, out var inner))
+            {
+                found = inner;
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /// <summary>
@@ -674,12 +887,25 @@ public sealed class WebSocketService : IDisposable
 
     /// <summary>
     /// Heuristic check: does this JSON object look like it contains combat data?
-    /// Looks for Encounter/encounter or Combatant/combatant/Combatants fields.
+    /// Looks for Encounter/encounter or combatant/player/party fields.
+    /// Also returns true if the element itself is an array (can be combatant list)
+    /// or if it has a "CombatData" field (some OverlayPlugin builds nest the real
+    /// payload under that key).
     /// </summary>
     private static bool LooksLikeCombatData(JsonElement el)
     {
+        // Array at root level could be a list of combatants
+        if (el.ValueKind == JsonValueKind.Array) return true;
         if (el.ValueKind != JsonValueKind.Object) return false;
-        foreach (var key in new[] { "Encounter", "encounter", "Combatant", "combatant", "Combatants", "combatants" })
+
+        // Some builds send { type:"CombatData", CombatData:{ ... } }
+        if (el.TryGetProperty("CombatData", out var cdField) && cdField.ValueKind == JsonValueKind.Object)
+            return true;
+
+        foreach (var key in new[] {
+            "Encounter", "encounter",
+            "Combatant", "combatant", "Combatants", "combatants",
+            "Players", "players", "Party", "party" })
         {
             if (el.TryGetProperty(key, out _))
                 return true;
@@ -703,6 +929,15 @@ public sealed class WebSocketService : IDisposable
     {
         var options = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
         return JsonSerializer.Deserialize<List<CombatantInfo>>(rawJson, options);
+    }
+
+    /// <summary>
+    /// Deserializes a single CombatantInfo (for object-format combatant dictionaries).
+    /// </summary>
+    private static CombatantInfo? DeserializeCombatant(string rawJson)
+    {
+        var options = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
+        return JsonSerializer.Deserialize<CombatantInfo>(rawJson, options);
     }
 
     private void AddNamedAlert(JsonElement payload, string propertyName, AlertType type, float defaultDuration)

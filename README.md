@@ -1,4 +1,4 @@
-# CactBridge
+# Snat's CactBridge
 
 A [Dalamud](https://github.com/goatcorp/Dalamud) plugin that integrates [Cactbot](https://github.com/OverlayPlugin/cactbot) into Final Fantasy XIV.
 

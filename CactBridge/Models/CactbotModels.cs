@@ -161,35 +161,54 @@ public class EncounterInfo
 
 /// <summary>
 /// A single combatant (party member) in the current encounter.
+/// OverlayPlugin sends these with uppercase field names and uses "ENCDPS"
+/// for damage per second rather than "DPS".
 /// </summary>
 public class CombatantInfo
 {
+    private double _dps;
+
     /// <summary>Character name.</summary>
-    [JsonPropertyName("name")]
+    [JsonPropertyName("Name")]
     public string Name { get; set; } = string.Empty;
 
     /// <summary>Job abbreviation (e.g. "WAR", "WHM", "DRG").</summary>
-    [JsonPropertyName("job")]
+    [JsonPropertyName("Job")]
     public string Job { get; set; } = string.Empty;
 
     /// <summary>Total damage dealt.</summary>
-    [JsonPropertyName("damage")]
+    [JsonPropertyName("Damage")]
     public double Damage { get; set; }
 
     /// <summary>Percentage of total encounter damage.</summary>
-    [JsonPropertyName("damage%")]
+    [JsonPropertyName("DamagePercent")]
     public double DamagePercent { get; set; }
 
-    /// <summary>Personal DPS.</summary>
+    /// <summary>
+    /// Personal DPS. OverlayPlugin sends this as "ENCDPS".
+    /// The backing field is shared with <see cref="ENCDPS"/> so both names work.
+    /// </summary>
     [JsonPropertyName("DPS")]
-    public double DPS { get; set; }
+    public double DPS
+    {
+        get => _dps;
+        set => _dps = value;
+    }
+
+    /// <summary>OverlayPlugin's native field name for personal DPS.</summary>
+    [JsonPropertyName("ENCDPS")]
+    public double ENCDPS
+    {
+        get => _dps;
+        set => _dps = value;
+    }
 
     /// <summary>Total healing done.</summary>
-    [JsonPropertyName("healing")]
+    [JsonPropertyName("Healing")]
     public double Healing { get; set; }
 
     /// <summary>Percentage of total encounter healing.</summary>
-    [JsonPropertyName("healing%")]
+    [JsonPropertyName("HealingPercent")]
     public double HealingPercent { get; set; }
 
     /// <summary>Personal HPS.</summary>
@@ -197,7 +216,7 @@ public class CombatantInfo
     public double HPS { get; set; }
 
     /// <summary>Number of deaths.</summary>
-    [JsonPropertyName("deaths")]
+    [JsonPropertyName("Deaths")]
     public int Deaths { get; set; }
 
     [JsonIgnore]

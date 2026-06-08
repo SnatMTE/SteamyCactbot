@@ -160,14 +160,33 @@ public class DamageMeterOverlayWindow : Window, IDisposable
         colHealWidth = ImGui.CalcTextSize("99.99M HPS").X + ColPadding;
         colDeathsWidth = ImGui.CalcTextSize("Deaths").X + ColPadding;
 
-        // ---------- Encounter header ----------
         var cursorY = boxPos.Y + 4f;
         var leftX = boxPos.X + 4f;
 
+        // ---------- Always-visible status line: encDPS & DPS ----------
+        // Even when no combat data has arrived, show zeros so user knows the overlay is active.
+        var encDpsValue = encounter?.DPS ?? 0;
+        // Find the player's own DPS from combatants (first combatant with a non-empty name)
+        var playerDps = frameCombatants.Count > 0 ? frameCombatants[0].DPS : 0;
+        var encDpsText = $"encDPS: {encDpsValue:F0}";
+        var dpsText    = $"DPS: {playerDps:F0}";
+
+        // Connection indicator
+        var connText = wsService.IsConnected ? "ACT ✓" : "ACT ✗";
+        var connColor = wsService.IsConnected ? new Vector4(0.4f, 0.9f, 0.4f, 1f) : new Vector4(1f, 0.3f, 0.3f, 1f);
+
+        // Draw the status line at the top-right of the window
+        var statusLine = $"{encDpsText}  |  {dpsText}  |  {connText}";
+        var statusSize = ImGui.CalcTextSize(statusLine);
+        var statusX = boxPos.X + boxSize.X - statusSize.X - 4f;
+        drawList.AddText(new Vector2(statusX, cursorY), ImGui.ColorConvertFloat4ToU32(ColorHeader), statusLine);
+        cursorY += lineHeight + 2f;
+
+        // ---------- Encounter header ----------
         if (cfg.DpsShowHeader && encounter != null)
         {
             drawList.AddText(new Vector2(leftX, cursorY), ImGui.ColorConvertFloat4ToU32(ColorHeader),
-                $"{encounter.Title}  |  {encounter.DurationStr}  |  {encounter.DamageStr}  |  {encounter.DPS:F0} DPS");
+                $"{encounter.Title}  |  {encounter.DurationStr}  |  {encounter.DamageStr}");
             cursorY += lineHeight + 2f;
         }
 
@@ -204,57 +223,72 @@ public class DamageMeterOverlayWindow : Window, IDisposable
             ImGui.ColorConvertFloat4ToU32(new Vector4(0.40f, 0.40f, 0.40f, 0.60f)));
         cursorY += 2f;
 
-        // ---------- Combatant rows ----------
-        var altBg = new Vector4(1f, 1f, 1f, 0.03f);
-        for (int i = 0; i < frameCombatants.Count; i++)
+        // ---------- Combatant rows or empty state ----------
+        if (frameCombatants.Count == 0)
         {
-            var c = frameCombatants[i];
-            if (cursorY + lineHeight > boxPos.Y + boxSize.Y)
-                break; // clip
-
-            // Alternating row background
-            if (i % 2 == 1)
-            {
-                drawList.AddRectFilled(new Vector2(leftX, cursorY), new Vector2(boxPos.X + boxSize.X - 4f, cursorY + lineHeight),
-                    ImGui.ColorConvertFloat4ToU32(altBg));
-            }
-
-            xPos = leftX;
-
-            // Position #
-            drawList.AddText(new Vector2(xPos, cursorY), ImGui.ColorConvertFloat4ToU32(ColorPosition), $"{i + 1}");
-            xPos += 24f;
-
-            // Job (coloured)
-            drawList.AddText(new Vector2(xPos, cursorY), ImGui.ColorConvertFloat4ToU32(ColorJob), c.Job);
-            xPos += 32f;
-
-            // Name
-            drawList.AddText(new Vector2(xPos, cursorY), ImGui.ColorConvertFloat4ToU32(ColorDamage), c.Name);
-            xPos += 120f;
-
-            // DPS
-            drawList.AddText(new Vector2(xPos, cursorY), ImGui.ColorConvertFloat4ToU32(ColorDps), c.DpsStr);
-            xPos += colDpsWidth;
-
-            // Damage
-            drawList.AddText(new Vector2(xPos, cursorY), ImGui.ColorConvertFloat4ToU32(ColorDamage), c.DamageStr);
-            xPos += colDamageWidth;
-
-            // Healing
-            if (cfg.DpsShowHealing)
-            {
-                drawList.AddText(new Vector2(xPos, cursorY), ImGui.ColorConvertFloat4ToU32(ColorHealing), c.HealingStr);
-                xPos += colHealWidth;
-            }
-
-            // Deaths
-            if (cfg.DpsShowDeaths)
-            {
-                drawList.AddText(new Vector2(xPos, cursorY), ImGui.ColorConvertFloat4ToU32(ColorDeaths), c.Deaths > 0 ? $"{c.Deaths}" : "-");
-            }
-
+            var emptyText = wsService.IsConnected
+                ? "Waiting for combat data..."
+                : "Not connected to ACT";
+            drawList.AddText(new Vector2(leftX + 24f, cursorY),
+                ImGui.ColorConvertFloat4ToU32(ColorJob), emptyText);
             cursorY += lineHeight;
+        }
+        else
+        {
+            var altBg = new Vector4(1f, 1f, 1f, 0.03f);
+            for (int i = 0; i < frameCombatants.Count; i++)
+            {
+                var c = frameCombatants[i];
+                if (cursorY + lineHeight > boxPos.Y + boxSize.Y)
+                    break; // clip
+
+                // Alternating row background
+                if (i % 2 == 1)
+                {
+                    drawList.AddRectFilled(new Vector2(leftX, cursorY),
+                        new Vector2(boxPos.X + boxSize.X - 4f, cursorY + lineHeight),
+                        ImGui.ColorConvertFloat4ToU32(altBg));
+                }
+
+                xPos = leftX;
+
+                // Position #
+                drawList.AddText(new Vector2(xPos, cursorY), ImGui.ColorConvertFloat4ToU32(ColorPosition), $"{i + 1}");
+                xPos += 24f;
+
+                // Job (coloured)
+                drawList.AddText(new Vector2(xPos, cursorY), ImGui.ColorConvertFloat4ToU32(ColorJob), c.Job);
+                xPos += 32f;
+
+                // Name
+                drawList.AddText(new Vector2(xPos, cursorY), ImGui.ColorConvertFloat4ToU32(ColorDamage), c.Name);
+                xPos += 120f;
+
+                // DPS
+                drawList.AddText(new Vector2(xPos, cursorY), ImGui.ColorConvertFloat4ToU32(ColorDps), c.DpsStr);
+                xPos += colDpsWidth;
+
+                // Damage
+                drawList.AddText(new Vector2(xPos, cursorY), ImGui.ColorConvertFloat4ToU32(ColorDamage), c.DamageStr);
+                xPos += colDamageWidth;
+
+                // Healing
+                if (cfg.DpsShowHealing)
+                {
+                    drawList.AddText(new Vector2(xPos, cursorY), ImGui.ColorConvertFloat4ToU32(ColorHealing), c.HealingStr);
+                    xPos += colHealWidth;
+                }
+
+                // Deaths
+                if (cfg.DpsShowDeaths)
+                {
+                    drawList.AddText(new Vector2(xPos, cursorY),
+                        ImGui.ColorConvertFloat4ToU32(ColorDeaths),
+                        c.Deaths > 0 ? $"{c.Deaths}" : "-");
+                }
+
+                cursorY += lineHeight;
+            }
         }
 
         // Persist position and size

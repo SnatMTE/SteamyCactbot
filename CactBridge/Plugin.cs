@@ -37,8 +37,8 @@ public sealed class Plugin : IDalamudPlugin
     [PluginService] internal static IFramework              Framework        { get; private set; } = null!;
     [PluginService] internal static IDtrBar                 DtrBar           { get; private set; } = null!;
 
-    // /cactbridge       - toggle move mode
-    // /cactbridge config - open settings
+    // /cactbridge       - open settings
+    // /cactbridge move  - toggle move mode
     private const string CommandName = "/cactbridge";
 
     public Configuration Configuration { get; init; }
@@ -132,7 +132,7 @@ public sealed class Plugin : IDalamudPlugin
         // Register slash command
         CommandManager.AddHandler(CommandName, new CommandInfo(OnCommand)
         {
-            HelpMessage = "Toggle move mode for the Cactbot text anchor. '/cactbridge config' opens settings."
+            HelpMessage = "Open CactBridge settings. '/cactbridge move' toggles move mode for the overlay."
         });
 
         // Hook into Dalamud's UI draw pipeline
@@ -210,10 +210,10 @@ public sealed class Plugin : IDalamudPlugin
     // -----------------------------------------------------------------------
     private void OnCommand(string command, string args)
     {
-        if (args.Trim().Equals("config", System.StringComparison.OrdinalIgnoreCase))
-            ToggleConfigUi();
-        else
+        if (args.Trim().Equals("move", System.StringComparison.OrdinalIgnoreCase))
             ToggleMainUi();
+        else
+            ToggleConfigUi();
     }
 
     // -----------------------------------------------------------------------

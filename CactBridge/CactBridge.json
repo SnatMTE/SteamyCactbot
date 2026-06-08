@@ -4,7 +4,7 @@
   "InternalName": "CactBridge",
   "AssemblyVersion": "0.0.2.4",
   "Punchline": "Cactbot overlay integration for FFXIV",
-  "Description": "A Cactbot UI plugin that displays triggers, timelines, and raid buffs overlay in FFXIV. Use /cactbot to open settings.",
+  "Description": "A Cactbot UI plugin that displays triggers, timelines, and raid buffs overlay in FFXIV. Use /cactbridge to open settings.",
   "ApplicableVersion": "any",
   "DalamudApiLevel": 15,
   "Tags": [
