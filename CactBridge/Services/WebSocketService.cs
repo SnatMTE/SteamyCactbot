@@ -595,6 +595,19 @@ public sealed class WebSocketService : IDisposable
     }
 
     /// <summary>
+    /// Finds a combatant by name and returns their info, or null if not found.
+    /// Thread-safe.
+    /// </summary>
+    public CombatantInfo? GetPlayerCombatant(string playerName)
+    {
+        lock (combatLock)
+        {
+            return combatants.Find(c =>
+                c.Name.Equals(playerName, StringComparison.OrdinalIgnoreCase));
+        }
+    }
+
+    /// <summary>
     /// Dequeues one pending chat announcement message. Returns <c>false</c> when the queue is empty.
     /// Call this from the game's main thread (e.g. <c>IFramework.Update</c>) to safely forward
     /// messages to <c>IChatGui</c>.

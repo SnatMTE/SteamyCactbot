@@ -170,6 +170,16 @@ public class Configuration : IPluginConfiguration
     public float DpsBgAlpha { get; set; } = 0.25f;
 
     // -----------------------------------------------------------------------
+    // Server info bar (_DTR) settings
+    // -----------------------------------------------------------------------
+
+    /// <summary>When true, shows party DPS in the native server info bar.</summary>
+    public bool ShowPartyDpsInBar { get; set; } = false;
+
+    /// <summary>When true, shows personal DPS in the native server info bar.</summary>
+    public bool ShowPersonalDpsInBar { get; set; } = false;
+
+    // -----------------------------------------------------------------------
     // Persistence helper
     // -----------------------------------------------------------------------
 

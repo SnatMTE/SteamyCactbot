@@ -34,6 +34,7 @@ public sealed class Plugin : IDalamudPlugin
     [PluginService] internal static IPluginLog              Log              { get; private set; } = null!;
     [PluginService] internal static IChatGui                ChatGui          { get; private set; } = null!;
     [PluginService] internal static IFramework              Framework        { get; private set; } = null!;
+    [PluginService] internal static IDtrBar                 DtrBar           { get; private set; } = null!;
 
     // /cactbridge       - toggle move mode
     // /cactbridge config - open settings
@@ -53,6 +54,11 @@ public sealed class Plugin : IDalamudPlugin
     private          OverlayWindow             OverlayWindow { get; init; }
     private          TimelineOverlayWindow     TimelineOverlayWindow { get; init; }
     private          DamageMeterOverlayWindow  DamageMeterOverlayWindow { get; init; }
+
+    // DTR (server info bar) entries
+    private DtrBarEntry? partyDpsEntry;
+    private DtrBarEntry? personalDpsEntry;
+    private string?      localPlayerName;
 
     // -----------------------------------------------------------------------
     // Constructor
@@ -95,6 +101,25 @@ public sealed class Plugin : IDalamudPlugin
         OverlayWindow.IsOpen = true;
         TimelineOverlayWindow.IsOpen = true;
         DamageMeterOverlayWindow.IsOpen = true;
+
+        // Cache local player name for personal DPS lookup
+        localPlayerName = ClientState.LocalPlayer?.Name?.ToString();
+
+        // Re-cache player name on login (character switch)
+        ClientState.Login += OnLogin;
+
+        // Register DTR (server info bar) entries
+        partyDpsEntry = DtrBar.Get("CactBridge-PartyDPS");
+        partyDpsEntry.Title = "DPS";
+        partyDpsEntry.Text = "0";
+        partyDpsEntry.Priority = 0;   // leftmost position
+        partyDpsEntry.Shown = false;
+
+        personalDpsEntry = DtrBar.Get("CactBridge-PersonalDPS");
+        personalDpsEntry.Title = "PDPS";
+        personalDpsEntry.Text = "0";
+        personalDpsEntry.Priority = 1; // just right of party DPS
+        personalDpsEntry.Shown = false;
 
         // Register slash command
         CommandManager.AddHandler(CommandName, new CommandInfo(OnCommand)
@@ -147,6 +172,21 @@ public sealed class Plugin : IDalamudPlugin
         TimelineOverlayWindow.Dispose();
         DamageMeterOverlayWindow.Dispose();
 
+        // Unsubscribe from events
+        ClientState.Login -= OnLogin;
+
+        // Remove DTR entries from the server info bar
+        if (partyDpsEntry != null)
+        {
+            DtrBar.Remove(partyDpsEntry);
+            partyDpsEntry = null;
+        }
+        if (personalDpsEntry != null)
+        {
+            DtrBar.Remove(personalDpsEntry);
+            personalDpsEntry = null;
+        }
+
         // Cancels the background task and closes the WebSocket gracefully
         wsService.Dispose();
         relayService.Dispose();
@@ -182,7 +222,15 @@ public sealed class Plugin : IDalamudPlugin
     }
 
     // -----------------------------------------------------------------------
-    // Framework update - drain chat queue on the game main thread
+    // Login handler - re-cache player name on character switch
+    // -----------------------------------------------------------------------
+    private void OnLogin()
+    {
+        localPlayerName = ClientState.LocalPlayer?.Name?.ToString();
+    }
+
+    // -----------------------------------------------------------------------
+    // Framework update - drain chat queue + update DTR entries
     // -----------------------------------------------------------------------
     private void OnFrameworkUpdate(IFramework framework)
     {
@@ -192,6 +240,47 @@ public sealed class Plugin : IDalamudPlugin
                 Type    = Dalamud.Game.Text.XivChatType.Notice,
                 Message = msg
             });
+
+        // Update server info bar entries
+        var cfg = Configuration;
+
+        // Party DPS
+        if (cfg.ShowPartyDpsInBar && partyDpsEntry != null)
+        {
+            var enc = wsService.GetEncounter();
+            if (enc != null)
+            {
+                partyDpsEntry.Text = $"{enc.DPS:F0}";
+                partyDpsEntry.Shown = true;
+            }
+            else
+            {
+                partyDpsEntry.Shown = false;
+            }
+        }
+        else if (partyDpsEntry != null)
+        {
+            partyDpsEntry.Shown = false;
+        }
+
+        // Personal DPS
+        if (cfg.ShowPersonalDpsInBar && personalDpsEntry != null && localPlayerName != null)
+        {
+            var player = wsService.GetPlayerCombatant(localPlayerName);
+            if (player != null)
+            {
+                personalDpsEntry.Text = $"{player.DPS:F0}";
+                personalDpsEntry.Shown = true;
+            }
+            else
+            {
+                personalDpsEntry.Shown = false;
+            }
+        }
+        else if (personalDpsEntry != null)
+        {
+            personalDpsEntry.Shown = false;
+        }
     }
 }
 

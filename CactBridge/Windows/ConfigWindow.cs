@@ -573,6 +573,28 @@ public class ConfigWindow : Window, IDisposable
                 ImGui.Separator();
 
                 // ----------------------------------------------------------
+                // Server info bar (_DTR) options
+                // ----------------------------------------------------------
+                ImGui.TextColored(new Vector4(1.00f, 0.85f, 0.10f, 1f), "Server Info Bar");
+                ImGui.Spacing();
+
+                var showPartyDps = configuration.ShowPartyDpsInBar;
+                if (ImGui.Checkbox("Show party DPS in server info bar", ref showPartyDps))
+                {
+                    configuration.ShowPartyDpsInBar = showPartyDps;
+                    configuration.Save();
+                }
+
+                var showPersonalDps = configuration.ShowPersonalDpsInBar;
+                if (ImGui.Checkbox("Show personal DPS in server info bar", ref showPersonalDps))
+                {
+                    configuration.ShowPersonalDpsInBar = showPersonalDps;
+                    configuration.Save();
+                }
+
+                ImGui.Separator();
+
+                // ----------------------------------------------------------
                 // Background opacity
                 // ----------------------------------------------------------
                 ImGui.TextColored(new Vector4(1.00f, 0.85f, 0.10f, 1f), "Appearance");
