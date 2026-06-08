@@ -24,16 +24,18 @@ public class ConfigWindow : Window, IDisposable
         "FFXIV Trump Gothic",
     };
 
-    private readonly Configuration          configuration;
-    private readonly WebSocketService       wsService;
-    private readonly OverlayWindow          overlayWindow;
-    private readonly TimelineOverlayWindow  timelineWindow;
-    private readonly RelayHttpService       relayService;
-    private readonly BrowserService         browserService;
+    private readonly Configuration           configuration;
+    private readonly WebSocketService        wsService;
+    private readonly OverlayWindow           overlayWindow;
+    private readonly TimelineOverlayWindow   timelineWindow;
+    private readonly DamageMeterOverlayWindow dpsWindow;
+    private readonly RelayHttpService        relayService;
+    private readonly BrowserService          browserService;
 
     // Constant window ID - the title can change without breaking ImGui identity
     public ConfigWindow(Plugin plugin, WebSocketService wsService, OverlayWindow overlayWindow,
-                        TimelineOverlayWindow timelineWindow, RelayHttpService relayService, BrowserService browserService)
+                        TimelineOverlayWindow timelineWindow, DamageMeterOverlayWindow dpsWindow,
+                        RelayHttpService relayService, BrowserService browserService)
         : base("CactBridge Settings###CactBridgeConfig")
     {
         Flags = ImGuiWindowFlags.NoResize    |
@@ -46,6 +48,7 @@ public class ConfigWindow : Window, IDisposable
         this.wsService      = wsService;
         this.overlayWindow  = overlayWindow;
         this.timelineWindow = timelineWindow;
+        this.dpsWindow      = dpsWindow;
         this.relayService   = relayService;
         this.browserService = browserService;
     }
@@ -500,15 +503,157 @@ public class ConfigWindow : Window, IDisposable
             }
 
             // ==============================================================
-            // Damage Meter tab (placeholder)
+            // Damage Meter tab
             // ==============================================================
             if (ImGui.BeginTabItem("Damage Meter"))
             {
-                var winSize = ImGui.GetWindowSize();
-                var textSize = ImGui.CalcTextSize("Coming Soon");
-                ImGui.SetCursorPosX((winSize.X - textSize.X) * 0.5f);
-                ImGui.SetCursorPosY((winSize.Y - textSize.Y) * 0.5f);
-                ImGui.TextColored(new Vector4(0.55f, 0.55f, 0.55f, 1f), "Coming Soon");
+                // ----------------------------------------------------------
+                // Current encounter info (live)
+                // ----------------------------------------------------------
+                var enc = wsService.GetEncounter();
+                if (enc != null)
+                {
+                    ImGui.TextColored(new Vector4(1.00f, 0.85f, 0.10f, 1f), "Current Encounter");
+                    ImGui.Text($"Fight: {enc.Title}");
+                    ImGui.Text($"Duration: {enc.DurationStr}");
+                    ImGui.Text($"Total DPS: {enc.DPS:F0}");
+                    ImGui.Text($"Total Damage: {enc.DamageStr}");
+                    ImGui.Separator();
+                }
+
+                // ----------------------------------------------------------
+                // Move mode
+                // ----------------------------------------------------------
+                var dpsMoveMode = dpsWindow.IsMoveMode;
+                if (ImGui.Checkbox("Move mode (Damage Meter)", ref dpsMoveMode))
+                {
+                    dpsWindow.SetMoveMode(dpsMoveMode);
+                    dpsWindow.IsOpen = true;
+                }
+
+                // ----------------------------------------------------------
+                // Position lock
+                // ----------------------------------------------------------
+                var dpsLocked = configuration.LockDpsPosition;
+                if (ImGui.Checkbox("Lock damage meter position", ref dpsLocked))
+                {
+                    configuration.LockDpsPosition = dpsLocked;
+                    configuration.Save();
+                }
+
+                ImGui.Separator();
+
+                // ----------------------------------------------------------
+                // Column visibility toggles
+                // ----------------------------------------------------------
+                ImGui.TextColored(new Vector4(1.00f, 0.85f, 0.10f, 1f), "Column Visibility");
+                ImGui.Spacing();
+
+                var showHeader = configuration.DpsShowHeader;
+                if (ImGui.Checkbox("Show encounter header", ref showHeader))
+                {
+                    configuration.DpsShowHeader = showHeader;
+                    configuration.Save();
+                }
+
+                var showHealing = configuration.DpsShowHealing;
+                if (ImGui.Checkbox("Show healing columns", ref showHealing))
+                {
+                    configuration.DpsShowHealing = showHealing;
+                    configuration.Save();
+                }
+
+                var showDeaths = configuration.DpsShowDeaths;
+                if (ImGui.Checkbox("Show deaths column", ref showDeaths))
+                {
+                    configuration.DpsShowDeaths = showDeaths;
+                    configuration.Save();
+                }
+
+                ImGui.Separator();
+
+                // ----------------------------------------------------------
+                // Background opacity
+                // ----------------------------------------------------------
+                ImGui.TextColored(new Vector4(1.00f, 0.85f, 0.10f, 1f), "Appearance");
+                ImGui.Spacing();
+
+                var bgAlpha = configuration.DpsBgAlpha;
+                ImGui.SetNextItemWidth(200f);
+                if (ImGui.SliderFloat("Background opacity", ref bgAlpha, 0f, 1f, "%.2f"))
+                {
+                    configuration.DpsBgAlpha = bgAlpha;
+                    configuration.Save();
+                }
+
+                // ----------------------------------------------------------
+                // Font size controls
+                // ----------------------------------------------------------
+                ImGui.Text("Font size");
+                ImGui.SameLine();
+                if (ImGui.Button("-##dps") && configuration.DpsFontScale > 0.1f)
+                {
+                    configuration.DpsFontScale = Math.Max(0.1f, configuration.DpsFontScale - 0.1f);
+                    configuration.Save();
+                }
+                ImGui.SameLine();
+                ImGui.Text($"{configuration.DpsFontScale:0.0}x");
+                ImGui.SameLine();
+                if (ImGui.Button("+##dps"))
+                {
+                    configuration.DpsFontScale += 0.1f;
+                    configuration.Save();
+                }
+
+                var dpsFontPreset = (int)configuration.DpsFontPreset;
+                ImGui.SetNextItemWidth(240f);
+                if (ImGui.Combo("DPS font", ref dpsFontPreset, FontPresetLabels, FontPresetLabels.Length))
+                {
+                    configuration.DpsFontPreset = (AlertFontPreset)dpsFontPreset;
+                    configuration.Save();
+                }
+
+                ImGui.Separator();
+
+                // ----------------------------------------------------------
+                // Position readout + reset
+                // ----------------------------------------------------------
+                ImGui.Text($"Position: ({configuration.DpsX:F0}, {configuration.DpsY:F0})");
+                ImGui.SameLine();
+                if (ImGui.Button("Reset##dps"))
+                {
+                    configuration.DpsX = 50f;
+                    configuration.DpsY = 400f;
+                    dpsWindow.ResetPosition();
+                    configuration.Save();
+                }
+
+                ImGui.Separator();
+
+                // ----------------------------------------------------------
+                // Overlay box size
+                // ----------------------------------------------------------
+                ImGui.TextColored(new Vector4(1.00f, 0.85f, 0.10f, 1f), "Damage Meter Box Size");
+                ImGui.Spacing();
+
+                var dpsBoxW = configuration.DpsWidth;
+                var dpsBoxH = configuration.DpsHeight;
+                ImGui.SetNextItemWidth(100f);
+                if (ImGui.DragFloat("Width##dps", ref dpsBoxW, 1f, 200f, 2000f, "%.0f"))
+                {
+                    configuration.DpsWidth = Math.Clamp(dpsBoxW, 200f, 2000f);
+                    configuration.Save();
+                }
+                ImGui.SameLine();
+                ImGui.SetNextItemWidth(100f);
+                if (ImGui.DragFloat("Height##dps", ref dpsBoxH, 1f, 100f, 1000f, "%.0f"))
+                {
+                    configuration.DpsHeight = Math.Clamp(dpsBoxH, 100f, 1000f);
+                    configuration.Save();
+                }
+
+                ImGui.Spacing();
+                ImGui.Separator();
                 ImGui.EndTabItem();
             }
 

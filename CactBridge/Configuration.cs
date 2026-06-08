@@ -133,6 +133,43 @@ public class Configuration : IPluginConfiguration
     public float TimelineLookAhead { get; set; } = 30f;
 
     // -----------------------------------------------------------------------
+    // Damage Meter overlay settings
+    // -----------------------------------------------------------------------
+
+    /// <summary>Screen X position of the damage meter overlay (pixels).</summary>
+    public float DpsX { get; set; } = 50f;
+
+    /// <summary>Screen Y position of the damage meter overlay (pixels).</summary>
+    public float DpsY { get; set; } = 400f;
+
+    /// <summary>Width of the damage meter overlay in pixels.</summary>
+    public float DpsWidth { get; set; } = 320f;
+
+    /// <summary>Height of the damage meter overlay in pixels.</summary>
+    public float DpsHeight { get; set; } = 400f;
+
+    /// <summary>When true the damage meter overlay cannot be dragged.</summary>
+    public bool LockDpsPosition { get; set; } = false;
+
+    /// <summary>Font scale for the DPS meter text.</summary>
+    public float DpsFontScale { get; set; } = 1.0f;
+
+    /// <summary>Font preset for the DPS meter.</summary>
+    public AlertFontPreset DpsFontPreset { get; set; } = AlertFontPreset.FfxivAxis;
+
+    /// <summary>When true, shows encounter header (title, duration, total DPS).</summary>
+    public bool DpsShowHeader { get; set; } = true;
+
+    /// <summary>When true, shows the healing columns.</summary>
+    public bool DpsShowHealing { get; set; } = false;
+
+    /// <summary>When true, shows the deaths column.</summary>
+    public bool DpsShowDeaths { get; set; } = false;
+
+    /// <summary>Background opacity (0 = transparent, 1 = solid).</summary>
+    public float DpsBgAlpha { get; set; } = 0.25f;
+
+    // -----------------------------------------------------------------------
     // Persistence helper
     // -----------------------------------------------------------------------
 

@@ -94,6 +94,121 @@ public class TimelineEntry
 }
 
 // ---------------------------------------------------------------------------
+// Combat data / Damage meter models
+// ---------------------------------------------------------------------------
+
+/// <summary>
+/// Encounter-level metadata from the <c>CombatData</c> event.
+/// </summary>
+public class EncounterInfo
+{
+    /// <summary>Fight name / encounter title.</summary>
+    [JsonPropertyName("title")]
+    public string Title { get; set; } = string.Empty;
+
+    /// <summary>Encounter duration in seconds.</summary>
+    [JsonPropertyName("duration")]
+    public double Duration { get; set; }
+
+    /// <summary>Total encounter DPS (party-wide).</summary>
+    [JsonPropertyName("DPS")]
+    public double DPS { get; set; }
+
+    /// <summary>Total damage dealt during the encounter.</summary>
+    [JsonPropertyName("damage")]
+    public double Damage { get; set; }
+
+    /// <summary>True during an active encounter.</summary>
+    [JsonPropertyName("isFighting")]
+    public bool IsFighting { get; set; }
+
+    /// <summary>Formatted duration string for display.</summary>
+    [JsonIgnore]
+    public string DurationStr
+    {
+        get
+        {
+            var ts = TimeSpan.FromSeconds(Duration);
+            return ts.Hours > 0
+                ? $"{ts.Hours}h {ts.Minutes}m {ts.Seconds}s"
+                : ts.Minutes > 0
+                    ? $"{ts.Minutes}m {ts.Seconds}s"
+                    : $"{ts.Seconds}s";
+        }
+    }
+
+    /// <summary>Formatted total damage.</summary>
+    [JsonIgnore]
+    public string DamageStr => Damage >= 1_000_000
+        ? $"{Damage / 1_000_000:F2}M"
+        : Damage >= 1_000
+            ? $"{Damage / 1_000:F1}K"
+            : $"{Damage:F0}";
+}
+
+/// <summary>
+/// A single combatant (party member) in the current encounter.
+/// </summary>
+public class CombatantInfo
+{
+    /// <summary>Character name.</summary>
+    [JsonPropertyName("name")]
+    public string Name { get; set; } = string.Empty;
+
+    /// <summary>Job abbreviation (e.g. "WAR", "WHM", "DRG").</summary>
+    [JsonPropertyName("job")]
+    public string Job { get; set; } = string.Empty;
+
+    /// <summary>Total damage dealt.</summary>
+    [JsonPropertyName("damage")]
+    public double Damage { get; set; }
+
+    /// <summary>Percentage of total encounter damage.</summary>
+    [JsonPropertyName("damage%")]
+    public double DamagePercent { get; set; }
+
+    /// <summary>Personal DPS.</summary>
+    [JsonPropertyName("DPS")]
+    public double DPS { get; set; }
+
+    /// <summary>Total healing done.</summary>
+    [JsonPropertyName("healing")]
+    public double Healing { get; set; }
+
+    /// <summary>Percentage of total encounter healing.</summary>
+    [JsonPropertyName("healing%")]
+    public double HealingPercent { get; set; }
+
+    /// <summary>Personal HPS.</summary>
+    [JsonPropertyName("HPS")]
+    public double HPS { get; set; }
+
+    /// <summary>Number of deaths.</summary>
+    [JsonPropertyName("deaths")]
+    public int Deaths { get; set; }
+
+    [JsonIgnore]
+    public string DamageStr => Damage >= 1_000_000
+        ? $"{Damage / 1_000_000:F2}M"
+        : Damage >= 1_000
+            ? $"{Damage / 1_000:F1}K"
+            : $"{Damage:F0}";
+
+    [JsonIgnore]
+    public string HealingStr => Healing >= 1_000_000
+        ? $"{Healing / 1_000_000:F2}M"
+        : Healing >= 1_000
+            ? $"{Healing / 1_000:F1}K"
+            : $"{Healing:F0}";
+
+    [JsonIgnore]
+    public string DpsStr => $"{DPS:F0}";
+
+    [JsonIgnore]
+    public string HpsStr => $"{HPS:F0}";
+}
+
+// ---------------------------------------------------------------------------
 // OverlayPlugin WebSocket wire types
 // ---------------------------------------------------------------------------
 

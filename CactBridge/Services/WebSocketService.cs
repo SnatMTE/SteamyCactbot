@@ -61,6 +61,9 @@ public sealed class WebSocketService : IDisposable
     private readonly List<CactbotAlert>  alerts      = new();
     private readonly object              timelineLock      = new();
     private readonly List<TimelineEntry> timelineEntries   = new();
+    private readonly object              combatLock        = new();
+    private EncounterInfo?               currentEncounter;
+    private List<CombatantInfo>          combatants        = new();
     private readonly CancellationTokenSource cts         = new();
     private readonly ConcurrentQueue<string> chatQueue   = new();
     private readonly System.Collections.Generic.HashSet<string> seenTypes = new();
@@ -320,6 +323,10 @@ public sealed class WebSocketService : IDisposable
                                 HandleActLogLine(entry.GetString() ?? string.Empty);
                     }
                     break;
+
+                case "CombatData":
+                    HandleCombatData(root);
+                    break;
             }
         }
         catch (JsonException ex)
@@ -488,6 +495,49 @@ public sealed class WebSocketService : IDisposable
         log.Debug($"[CactBridge] [Timeline] \"{text}\" in {timeRemaining:F1}s");
     }
 
+    /// <summary>
+    /// Processes a <c>CombatData</c> event from OverlayPlugin / ACT.
+    /// Expected shape:
+    /// <code>
+    /// { "type":"CombatData", "encounter":{...}, "combatants":[...] }
+    /// </code>
+    /// </summary>
+    private void HandleCombatData(JsonElement root)
+    {
+        try
+        {
+            EncounterInfo? encounter = null;
+            List<CombatantInfo>? combatantsList = null;
+
+            // Parse encounter
+            if (root.TryGetProperty("encounter", out var encEl) && encEl.ValueKind == JsonValueKind.Object)
+            {
+                encounter = JsonSerializer.Deserialize<EncounterInfo>(encEl.GetRawText());
+            }
+
+            // Parse combatants array
+            if (root.TryGetProperty("combatants", out var comEl) && comEl.ValueKind == JsonValueKind.Array)
+            {
+                combatantsList = JsonSerializer.Deserialize<List<CombatantInfo>>(comEl.GetRawText());
+            }
+
+            lock (combatLock)
+            {
+                if (encounter != null)
+                    currentEncounter = encounter;
+                if (combatantsList != null)
+                    combatants = combatantsList;
+            }
+
+            if (encounter != null)
+                log.Debug($"[CactBridge] [CombatData] \"{encounter.Title}\" DPS={encounter.DPS:F0} ({combatantsList?.Count ?? 0} combatants)");
+        }
+        catch (Exception ex)
+        {
+            log.Warning($"[CactBridge] Failed to parse CombatData: {ex.Message}");
+        }
+    }
+
     private void AddNamedAlert(JsonElement payload, string propertyName, AlertType type, float defaultDuration)
     {
         if (TryGetString(payload, propertyName, out var text) && !string.IsNullOrWhiteSpace(text))
@@ -520,6 +570,28 @@ public sealed class WebSocketService : IDisposable
     {
         if (!string.IsNullOrWhiteSpace(message))
             chatQueue.Enqueue(message);
+    }
+
+    /// <summary>
+    /// Returns the current encounter info (or null if none active). Thread-safe.
+    /// </summary>
+    public EncounterInfo? GetEncounter()
+    {
+        lock (combatLock)
+            return currentEncounter;
+    }
+
+    /// <summary>
+    /// Returns a copy of the current combatants list, sorted by DPS descending. Thread-safe.
+    /// </summary>
+    public List<CombatantInfo> GetCombatants()
+    {
+        lock (combatLock)
+        {
+            var sorted = new List<CombatantInfo>(combatants);
+            sorted.Sort((a, b) => b.DPS.CompareTo(a.DPS));
+            return sorted;
+        }
     }
 
     /// <summary>

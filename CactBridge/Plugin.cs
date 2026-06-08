@@ -49,9 +49,10 @@ public sealed class Plugin : IDalamudPlugin
     private readonly WebSocketService       wsService;
     private readonly RelayHttpService       relayService;
     private readonly BrowserService        browserService;
-    private          ConfigWindow           ConfigWindow  { get; init; }
-    private          OverlayWindow          OverlayWindow { get; init; }
-    private          TimelineOverlayWindow  TimelineOverlayWindow { get; init; }
+    private          ConfigWindow              ConfigWindow  { get; init; }
+    private          OverlayWindow             OverlayWindow { get; init; }
+    private          TimelineOverlayWindow     TimelineOverlayWindow { get; init; }
+    private          DamageMeterOverlayWindow  DamageMeterOverlayWindow { get; init; }
 
     // -----------------------------------------------------------------------
     // Constructor
@@ -80,17 +81,20 @@ public sealed class Plugin : IDalamudPlugin
 
         // Create windows - OverlayWindow must exist before ConfigWindow
         // so ConfigWindow can hold a reference to it
-        OverlayWindow          = new OverlayWindow(this, wsService);
-        TimelineOverlayWindow  = new TimelineOverlayWindow(this, wsService);
-        ConfigWindow           = new ConfigWindow(this, wsService, OverlayWindow, TimelineOverlayWindow, relayService, browserService);
+        OverlayWindow             = new OverlayWindow(this, wsService);
+        TimelineOverlayWindow     = new TimelineOverlayWindow(this, wsService);
+        DamageMeterOverlayWindow  = new DamageMeterOverlayWindow(this, wsService);
+        ConfigWindow              = new ConfigWindow(this, wsService, OverlayWindow, TimelineOverlayWindow, DamageMeterOverlayWindow, relayService, browserService);
 
         WindowSystem.AddWindow(ConfigWindow);
         WindowSystem.AddWindow(OverlayWindow);
         WindowSystem.AddWindow(TimelineOverlayWindow);
+        WindowSystem.AddWindow(DamageMeterOverlayWindow);
 
-        // Both overlays should always remain visible.
+        // All overlays should always remain visible.
         OverlayWindow.IsOpen = true;
         TimelineOverlayWindow.IsOpen = true;
+        DamageMeterOverlayWindow.IsOpen = true;
 
         // Register slash command
         CommandManager.AddHandler(CommandName, new CommandInfo(OnCommand)
@@ -141,6 +145,7 @@ public sealed class Plugin : IDalamudPlugin
         ConfigWindow.Dispose();
         OverlayWindow.Dispose();
         TimelineOverlayWindow.Dispose();
+        DamageMeterOverlayWindow.Dispose();
 
         // Cancels the background task and closes the WebSocket gracefully
         wsService.Dispose();
