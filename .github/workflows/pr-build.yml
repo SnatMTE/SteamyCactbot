@@ -1,4 +1,4 @@
-name: Sample PR Builder for SamplePlugin
+name: PR Builder for CactBridge
 
 on:
   pull_request:
@@ -8,9 +8,6 @@ jobs:
 
   build:
     runs-on: windows-2022
-
-    env:
-      Solution_Name: SamplePlugin
 
     steps:
     - name: Checkout
@@ -27,13 +24,13 @@ jobs:
         Expand-Archive -Force latest.zip "$env:AppData\XIVLauncher\addon\Hooks\dev"
 
     - name: Build with dotnet
-      run: dotnet build --configuration Release
+      run: dotnet build .\CactBridge\CactBridge.csproj --configuration Release
 
     - name: Store artifacts
       uses: actions/upload-artifact@v4
       with:
-        name: SamplePlugin
-        path: .\SamplePlugin\bin\x64\Release\SamplePlugin\*
+        name: CactBridge
+        path: .\CactBridge\bin\Release\*
         if-no-files-found: error
         retention-days: 1
 
