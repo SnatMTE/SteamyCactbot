@@ -34,11 +34,14 @@ jobs:
       - name: Extract version info
         id: version
         shell: bash
+        env:
+          INPUT_NOTES: ${{ inputs.notes || '' }}
         run: |
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
             echo "version=${{ inputs.version }}" >> "$GITHUB_OUTPUT"
             echo "tag=${{ inputs.tag }}" >> "$GITHUB_OUTPUT"
-            echo "notes=${{ inputs.notes }}" >> "$GITHUB_OUTPUT"
+            # Pass notes through env var to avoid shell injection
+            echo "notes=$INPUT_NOTES" >> "$GITHUB_OUTPUT"
           else
             TAG="${{ github.event.release.tag_name }}"
             CLEAN="${TAG#v}"
@@ -50,6 +53,10 @@ jobs:
       - name: Generate plugin JSON
         id: generate
         shell: bash
+        env:
+          RELEASE_BODY: ${{ github.event.release.body || '' }}
+          RELEASE_NOTES: ${{ steps.version.outputs.notes || '' }}
+          RELEASE_PUBLISHED_AT: ${{ github.event.release.published_at || '' }}
         run: |
           VERSION="${{ steps.version.outputs.version }}"
           TAG="${{ steps.version.outputs.tag }}"
@@ -67,13 +74,13 @@ jobs:
           DALAMUD_API_LEVEL="$(jq -r '.DalamudApiLevel // 15' CactBridge/CactBridge.json)"
 
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            NOTES_RAW="${{ steps.version.outputs.notes }}"
+            NOTES_RAW="$RELEASE_NOTES"
             if [ -z "$NOTES_RAW" ]; then NOTES_FLAG=""; else NOTES_FLAG="$NOTES_RAW"; fi
             PUBLISHED_AT="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
           else
-            NOTES_RAW=$(echo '${{ github.event.release.body }}')
+            NOTES_RAW="$RELEASE_BODY"
             if [ -z "$NOTES_RAW" ]; then NOTES_FLAG=""; else NOTES_FLAG="$NOTES_RAW"; fi
-            PUBLISHED_AT="${{ github.event.release.published_at }}"
+            PUBLISHED_AT="$RELEASE_PUBLISHED_AT"
           fi
 
           mkdir -p public
@@ -134,6 +141,8 @@ jobs:
                 "notes": null
               }' > public/version.json
           else
+            # Convert notes to a safe JSON string (handles quotes, newlines, etc.)
+            NOTES_JSON=$(printf '%s' "$NOTES_FLAG" | jq -Rs '.')
             jq -n \
               --arg version "$VERSION" \
               --arg tag "$TAG" \
@@ -143,7 +152,7 @@ jobs:
               --arg downloadUrl "$DOWNLOAD_URL" \
               --arg releaseUrl "https://github.com/$REPO/releases/tag/$TAG" \
               --arg publishedAt "$PUBLISHED_AT" \
-              --arg notes "$NOTES_FLAG" \
+              --argjson notes "$NOTES_JSON" \
               '{
                 "version": $version,
                 "tag": $tag,
