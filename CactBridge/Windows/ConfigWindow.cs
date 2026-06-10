@@ -101,6 +101,20 @@ public class ConfigWindow : Window, IDisposable
                     configuration.EnableCactbotOverlay = enableOverlay;
                     configuration.Save();
                 }
+
+                // ----------------------------------------------------------
+                // Overlay style: Custom or Toast
+                // ----------------------------------------------------------
+                var style = (int)configuration.AlertOverlayStyle;
+                ImGui.SetNextItemWidth(180f);
+                if (ImGui.Combo("Overlay style", ref style, "Custom\0Toast\0"))
+                {
+                    configuration.AlertOverlayStyle = (OverlayStyle)style;
+                    configuration.Save();
+                }
+                if (ImGui.IsItemHovered())
+                    ImGui.SetTooltip("Custom — renders alerts in the ImGui overlay with per-type colours and adjustable fonts\nToast — sends alerts as real FFXIV toasts via the game's native toast system");
+
                 ImGui.Spacing();
                 ImGui.Separator();
 

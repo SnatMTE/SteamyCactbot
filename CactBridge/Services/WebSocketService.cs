@@ -63,6 +63,7 @@ public sealed class WebSocketService : IDisposable
     private List<CombatantInfo>          combatants        = new();
     private readonly CancellationTokenSource cts         = new();
     private readonly ConcurrentQueue<string> chatQueue   = new();
+    private readonly ConcurrentQueue<string> toastQueue  = new();
     private readonly System.Collections.Generic.HashSet<string> seenTypes = new();
     private int              logLineCount;
     private int              rawMessageCount;     // Total messages received since connect
@@ -1169,13 +1170,22 @@ public sealed class WebSocketService : IDisposable
 
     private void EnqueueAlert(CactbotAlert alert)
     {
-        lock (alertLock)
+        // In Toast style, send as a real FFXIV toast instead of rendering in the overlay.
+        // Toasts queue naturally in the game UI (one at a time, with native duration).
+        if (config.AlertOverlayStyle == OverlayStyle.Toast)
         {
-            alerts.Add(alert);
+            toastQueue.Enqueue(alert.Text);
+        }
+        else
+        {
+            lock (alertLock)
+            {
+                alerts.Add(alert);
 
-            // Bound the list so memory usage stays predictable
-            if (alerts.Count > MaxStoredAlerts)
-                alerts.RemoveRange(0, alerts.Count - MaxStoredAlerts);
+                // Bound the list so memory usage stays predictable
+                if (alerts.Count > MaxStoredAlerts)
+                    alerts.RemoveRange(0, alerts.Count - MaxStoredAlerts);
+            }
         }
 
         if (config.OutputToChatAnnouncement)
@@ -1236,6 +1246,22 @@ public sealed class WebSocketService : IDisposable
     /// messages to <c>IChatGui</c>.
     /// </summary>
     public bool TryDequeueChat(out string message) => chatQueue.TryDequeue(out message!);
+
+    /// <summary>
+    /// Enqueues a message to be shown as a real FFXIV toast.
+    /// Drained on the game main thread via <c>IFramework.Update</c>.
+    /// Thread-safe.
+    /// </summary>
+    public void EnqueueToast(string message)
+    {
+        if (!string.IsNullOrWhiteSpace(message))
+            toastQueue.Enqueue(message);
+    }
+
+    /// <summary>
+    /// Dequeues one pending toast message. Returns <c>false</c> when the queue is empty.
+    /// </summary>
+    public bool TryDequeueToast(out string message) => toastQueue.TryDequeue(out message!);
 
     /// <summary>Clears all stored timeline entries (e.g. on zone change). Thread-safe.</summary>
     public void ClearTimelineEntries()

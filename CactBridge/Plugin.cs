@@ -36,6 +36,7 @@ public sealed class Plugin : IDalamudPlugin
     [PluginService] internal static IChatGui                ChatGui          { get; private set; } = null!;
     [PluginService] internal static IFramework              Framework        { get; private set; } = null!;
     [PluginService] internal static IDtrBar                 DtrBar           { get; private set; } = null!;
+    [PluginService] internal static IToastGui               ToastGui         { get; private set; } = null!;
 
     // /cactbridge       - open settings
     // /cactbridge move  - toggle move mode
@@ -242,12 +243,17 @@ public sealed class Plugin : IDalamudPlugin
     // -----------------------------------------------------------------------
     private void OnFrameworkUpdate(IFramework framework)
     {
+        // Drain chat announcement queue
         while (wsService.TryDequeueChat(out var msg))
             ChatGui.Print(new Dalamud.Game.Text.XivChatEntry
             {
                 Type    = Dalamud.Game.Text.XivChatType.Notice,
                 Message = msg
             });
+
+        // Drain toast queue — fires real FFXIV toasts when in Toast style
+        while (wsService.TryDequeueToast(out var toastMsg))
+            ToastGui.ShowQuest(toastMsg);
 
         // Update server info bar entries
         var cfg = Configuration;

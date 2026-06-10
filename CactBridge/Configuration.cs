@@ -13,6 +13,12 @@ public enum AlertFontPreset
     FfxivTrumpGothic = 4,
 }
 
+public enum OverlayStyle
+{
+    Custom = 0,
+    Toast = 1,
+}
+
 [Serializable]
 public class Configuration : IPluginConfiguration
 {
@@ -66,6 +72,13 @@ public class Configuration : IPluginConfiguration
 
     /// <summary>Maximum number of alerts shown simultaneously (1–10).</summary>
     public int MaxVisibleAlerts { get; set; } = 5;
+
+    // -----------------------------------------------------------------------
+    // Overlay style
+    // -----------------------------------------------------------------------
+
+    /// <summary>How alerts are visually rendered: Custom (current) or Toast (game-style).</summary>
+    public OverlayStyle AlertOverlayStyle { get; set; } = OverlayStyle.Custom;
 
     // -----------------------------------------------------------------------
     // Chat output

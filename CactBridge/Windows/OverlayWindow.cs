@@ -211,6 +211,7 @@ public class OverlayWindow : Window, IDisposable
             // Each alert's text wraps to fit the box width, with every line
             // individually centered horizontally and the block centered
             // vertically within the box.
+            // --------------------------------------------------------------
             // Measure total height of all alert text blocks
             var totalHeight = 0f;
             var textSizes = new Vector2[frameAlerts.Count];
