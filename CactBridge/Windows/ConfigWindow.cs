@@ -166,6 +166,8 @@ public class ConfigWindow : Window, IDisposable
 
                 ImGui.Separator();
 
+                if (configuration.AlertOverlayStyle == OverlayStyle.Custom)
+                {
                 // ----------------------------------------------------------
                 // Move mode
                 // ----------------------------------------------------------
@@ -303,6 +305,14 @@ public class ConfigWindow : Window, IDisposable
                 }
 
                 ImGui.Spacing();
+                }
+                else
+                {
+                    ImGui.Spacing();
+                    ImGui.TextColored(new Vector4(0.55f, 0.55f, 0.55f, 1f),
+                        "Toast mode is active \u2014 overlay display settings do not apply.");
+                    ImGui.Spacing();
+                }
 
                 ImGui.Separator();
 
