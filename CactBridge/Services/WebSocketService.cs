@@ -1228,6 +1228,55 @@ public sealed class WebSocketService : IDisposable
     }
 
     /// <summary>
+    /// Returns combatants that have a known playable job (filters out pets,
+    /// chocobos, NPCs, and other non-player entities). Thread-safe.
+    /// </summary>
+    public List<CombatantInfo> GetPlayerCombatants()
+    {
+        lock (combatLock)
+        {
+            var sorted = new List<CombatantInfo>(combatants.Count);
+            foreach (var c in combatants)
+            {
+                if (IsPlayerJob(c.Job))
+                    sorted.Add(c);
+            }
+            sorted.Sort((a, b) => b.DPS.CompareTo(a.DPS));
+            return sorted;
+        }
+    }
+
+    /// <summary>
+    /// Returns true if <paramref name="job"/> is a known playable job abbreviation.
+    /// </summary>
+    private static bool IsPlayerJob(string job)
+    {
+        if (string.IsNullOrWhiteSpace(job) || job.Length < 3)
+            return false;
+
+        // All playable jobs in FFXIV (as of Dawntrail 7.x)
+        return job switch
+        {
+            // Tanks
+            "PLD" or "WAR" or "DRK" or "GNB" =>
+                true,
+            // Healers
+            "WHM" or "SCH" or "AST" or "SGE" =>
+                true,
+            // Melee DPS
+            "MNK" or "DRG" or "NIN" or "SAM" or "RPR" or "VPR" =>
+                true,
+            // Physical Ranged DPS
+            "BRD" or "MCH" or "DNC" =>
+                true,
+            // Magical Ranged DPS
+            "BLM" or "SMN" or "RDM" or "PCT" or "BLU" =>
+                true,
+            _ => false,
+        };
+    }
+
+    /// <summary>
     /// Finds a combatant by name and returns their info, or null if not found.
     /// Thread-safe.
     /// </summary>

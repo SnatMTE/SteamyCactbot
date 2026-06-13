@@ -39,10 +39,10 @@ public class Configuration : IPluginConfiguration
     public bool EnableCactbotOverlay { get; set; } = true;
 
     /// <summary>Whether the timeline overlay is enabled.</summary>
-    public bool EnableTimelineOverlay { get; set; } = true;
+    public bool EnableTimelineOverlay { get; set; } = false;
 
     /// <summary>Whether the DPS meter overlay is enabled.</summary>
-    public bool EnableDpsMeter { get; set; } = true;
+    public bool EnableDpsMeter { get; set; } = false;
 
     // -----------------------------------------------------------------------
     // Overlay visibility and position
@@ -78,7 +78,7 @@ public class Configuration : IPluginConfiguration
     // -----------------------------------------------------------------------
 
     /// <summary>How alerts are visually rendered: Custom (current) or Toast (game-style).</summary>
-    public OverlayStyle AlertOverlayStyle { get; set; } = OverlayStyle.Custom;
+    public OverlayStyle AlertOverlayStyle { get; set; } = OverlayStyle.Toast;
 
     // -----------------------------------------------------------------------
     // Chat output

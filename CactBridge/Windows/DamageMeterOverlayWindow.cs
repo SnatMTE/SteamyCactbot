@@ -147,7 +147,7 @@ public class DamageMeterOverlayWindow : Window, IDisposable
 
         var encounter = wsService.GetEncounter();
         frameCombatants.Clear();
-        frameCombatants.AddRange(wsService.GetCombatants());
+        frameCombatants.AddRange(wsService.GetPlayerCombatants());
 
         var drawList = ImGui.GetWindowDrawList();
         var boxPos   = ImGui.GetWindowPos();
